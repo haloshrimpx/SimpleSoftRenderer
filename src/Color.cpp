@@ -9,11 +9,38 @@
 #include <cstdio>
 #include <iostream>
 
+/**
+ * 计算漫反射
+ * @param baseColor 物体颜色
+ * @param lightColor 光照颜色
+ * @param normal 法线
+ * @param lightDir 指向光源的方向
+ * @return
+ */
 Color calcDiffuse(const Color &baseColor, const Color &lightColor,
                   const maths::Vector3 &normal, const maths::Vector3 &lightDir) {
     double NdotL = maths::Vector3::dot(normal.normalize(), lightDir.normalize());
     // diffuse = lightCol * baseCol * max(0, NdotL)
     return (lightColor * baseColor) * (std::max(0.0, NdotL));
+}
+
+/**
+ * 计算高光反射
+ * @param baseColor 物体颜色
+ * @param lightColor 光照颜色
+ * @param normal 法线
+ * @param gloss 光泽度
+ * @param lightDir 指向光源的方向
+ * @param viewDir 视角方向(指向点)
+ * @return
+ */
+Color calcSpecular(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal, const double gloss,
+                   const maths::Vector3 &lightDir, const maths::Vector3 &viewDir) {
+    maths::Vector3 half = (lightDir + viewDir) * (1 / (lightDir + viewDir).getMagnitude());
+    maths::Vector3 n = normal.normalize();
+
+    // specular = (lightCol * baseCol) * max(0, n dot half)^gloss
+    return (lightColor * baseColor) * std::pow(std::max(0.0, maths::Vector3::dot(n, half)), gloss);
 }
 
 Color::Color() {
@@ -97,6 +124,32 @@ Color Color::toSRGBColor() const {
     res.r = r * 255;
     res.g = g * 255;
     res.b = b * 255;
+    res.a = a;
+    return res;
+}
+
+/**
+ * 将所有值限制在[0,255]
+ * @return
+ */
+Color Color::sRGBClamp() const {
+    Color res;
+    res.r = std::clamp(r, 0.0f, 255.0f);
+    res.g = std::clamp(g, 0.0f, 255.0f);
+    res.b = std::clamp(b, 0.0f, 255.0f);
+    res.a = a;
+    return res;
+}
+
+/**
+ * 将所有值限制在[0,1]
+ * @return
+ */
+Color Color::linearClamp() const {
+    Color res;
+    res.r = std::clamp(r, 0.0f, 1.0f);
+    res.g = std::clamp(g, 0.0f, 1.0f);
+    res.b = std::clamp(b, 0.0f, 1.0f);
     res.a = a;
     return res;
 }

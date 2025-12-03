@@ -37,25 +37,29 @@ namespace shader {
                     renderPixelColor(vertices, pos);
                 }
             }
-
             renderTriangleWireframe(vertices);
         }
     }
 
-    void shadingVertex(Object &object, const DirectionalLight &dirLight) {
+    void shadingVertex(Object &object, const DirectionalLight &dirLight, const maths::Vector3 &camPos,
+                       const Color &ambient) {
         geometry::Mesh &mesh = object.mesh;
 
         for (auto &vertex: mesh.vertices) {
             // 为顶点计算光照
             maths::Vector3 &normal = vertex.vertNormal;
             std::cout << "before: ";
-
-            vertex.vertColor = calcDiffuse(vertex.vertColor, dirLight.color, normal,
-                                           {1, 1, 1});
+            maths::Vector3 viewDir = vertex.pos.toVector3() - camPos;
+            maths::Vector3 lightDir = {1, 1, 1};
+            Color spec = calcSpecular(object.material.baseColor, dirLight.color, normal, object.material.gloss,
+                                      lightDir, viewDir);
+            Color diff = calcDiffuse(object.material.baseColor, dirLight.color, normal,
+                                     lightDir);
+            vertex.vertColor = spec + diff + ambient;
         }
     }
 
-    maths::Vector3 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p) {
+    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p) {
         const maths::Vector2 &A = triangle[0].pos.toVector2();
         const maths::Vector2 &B = triangle[1].pos.toVector2();
         const maths::Vector2 &C = triangle[2].pos.toVector2();
@@ -65,10 +69,11 @@ namespace shader {
         double alpha = calcDoubleTriangleArea(p, B, C) / area;
         double beta = calcDoubleTriangleArea(A, p, C) / area;
         double gamma = 1 - alpha - beta;
-        return {alpha, beta, gamma};
+        double flag = (alpha < 0 || beta < 0 || gamma < 0) ? -1 : 0;
+        return {alpha, beta, gamma, flag};
     }
 
-    maths::Vector3 getTriangleWeight(const geometry::Vertex triangle[3], const double area, const maths::Vector2 &p) {
+    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], const double area, const maths::Vector2 &p) {
         const maths::Vector2 &A = triangle[0].pos.toVector2();
         const maths::Vector2 &B = triangle[1].pos.toVector2();
         const maths::Vector2 &C = triangle[2].pos.toVector2();
@@ -77,19 +82,64 @@ namespace shader {
         double alpha = calcDoubleTriangleArea(p, B, C) / area;
         double beta = calcDoubleTriangleArea(A, p, C) / area;
         double gamma = 1 - alpha - beta;
-        return {alpha, beta, gamma};
+        double flag = (alpha < 0 || beta < 0 || gamma < 0) ? -1 : 0;
+        return {alpha, beta, gamma, flag};
+    }
+
+
+    /**
+     * 透视校正插值任何属性
+     * 默认点在三角形内
+     *
+     * @param triangle 三角形的三个顶点
+     * @param weight 插值点的重心权重
+     * @param iA 顶点A的属性
+     * @param iB 顶点B的属性
+     * @param iC 顶点C的属性
+     * @return
+     */
+    double perspCorrectionLerp(const geometry::Vertex triangle[3],
+                               const maths::Vector4 &weight,
+                               const double iA, const double iB, const double iC) {
+        double alpha = weight.x;
+        double beta = weight.y;
+        double gamma = weight.z;
+
+        double zA = triangle[0].pos.z;
+        double zB = triangle[1].pos.z;
+        double zC = triangle[2].pos.z;
+        double zP = 1 / (alpha / zA + beta / zB + gamma / zC);
+
+        // Ip = (alpha * iA / zA + beta * iB / zB + gamma * iC / zC) / zP
+        return (alpha * iA / zA + beta * iB / zB + gamma * iC / zC) / zP;
+    }
+
+    maths::Vector3 perspCorrectionLerp(const geometry::Vertex triangle[3],
+                                       const maths::Vector4 &weight,
+                                       const maths::Vector3 &iA, const maths::Vector3 &iB, const maths::Vector3 &iC) {
+        double alpha = weight.x;
+        double beta = weight.y;
+        double gamma = weight.z;
+
+        double zA = triangle[0].pos.z;
+        double zB = triangle[1].pos.z;
+        double zC = triangle[2].pos.z;
+        double zP = 1 / (alpha / zA + beta / zB + gamma / zC);
+
+        // Ip = (alpha * iA / zA + beta * iB / zB + gamma * iC / zC) / zP
+        return (alpha * iA * (1 / zA) + beta * iB * (1 / zB) + gamma * iC * (1 / zC)) * (1 / zP);
     }
 
 
     Color lerpTriangleColor(const geometry::Vertex triangle[3], const maths::Vector2 &p) {
         // 权重(alpha, beta, gamma), 三者和为1
-        maths::Vector3 weight = getTriangleWeight(triangle, p);
+        maths::Vector4 weight = getTriangleWeight(triangle, p);
         double alpha = weight.x;
         double beta = weight.y;
         double gamma = weight.z;
 
         // 如果点在三角形外
-        if (alpha < 0 || beta < 0 || weight.z < 0) {
+        if (weight.w < 0) {
             return COLOR_INVALID;
         }
         // 顶点颜色的透视校正
@@ -114,8 +164,8 @@ namespace shader {
      * @param p
      */
     void renderPixelDepth(geometry::Vertex vertices[3], const maths::Vector2 &p) {
-        maths::Vector3 weight = getTriangleWeight(vertices, p);
-        if (weight.x < 0 || weight.y < 0 || weight.z < 0)
+        maths::Vector4 weight = getTriangleWeight(vertices, p);
+        if (weight.w < 0)
             return;
         double z = Color::mapLinearToSRGB(1 - (weight.x * vertices[0].pos.z
                                                + weight.y * vertices[1].pos.z
@@ -132,7 +182,7 @@ namespace shader {
      * @param p
      */
     void renderPixelColor(geometry::Vertex vertices[3], const maths::Vector2 &p) {
-        Color pixColor = lerpTriangleColor(vertices, p).toSRGBColor();
+        Color pixColor = lerpTriangleColor(vertices, p).toSRGBColor().sRGBClamp();
 
         // 判断点是否在面内
         if (pixColor.a < 0)
@@ -141,6 +191,26 @@ namespace shader {
         int x = std::round(p.x);
         int y = std::round(p.y);
         putpixel(x, y, RGB(pixColor.r, pixColor.g, pixColor.b));
+    }
+
+    /**
+     * 对像素插值顶点法线，并且映射到颜色
+     * @param vertices
+     * @param p
+     */
+    void renderVertexNormal(geometry::Vertex vertices[3], const maths::Vector2 &p) {
+        maths::Vector4 weight = getTriangleWeight(vertices, p);
+        if (weight.w < 0)
+            return;
+
+        maths::Vector3 normal = perspCorrectionLerp(vertices, weight,
+                                                    vertices[0].vertNormal,
+                                                    vertices[1].vertNormal,
+                                                    vertices[2].vertNormal).normalize() * 255;
+
+        int x = std::round(p.x);
+        int y = std::round(p.y);
+        putpixel(x, y, RGB(normal.x, normal.y, normal.z));
     }
 
     /**

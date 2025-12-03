@@ -72,7 +72,8 @@ int main() {
         {{{-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, 1.0f}}},
         {{{-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, 1.0f}, {-1.0f, -1.0f, 1.0f}}}
     };
-    Object cubeTri(generateVertForTest(mesh), cubeTransform);
+    Material mat(COLOR_WHITE, COLOR_BLACK, 32);
+    Object cubeTri(generateVertForTest(mesh), cubeTransform, mat);
     DirectionalLight sun(
         COLOR_WHITE, 1.0, {
             {0, 0, 0}, {0, 0, 0}, {1, 1, 1}
@@ -84,8 +85,8 @@ int main() {
 
     while (true) {
         Camera renderCam(60, 0.01, 100, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
-        // cubeTransform.rotate(0, 30, 0);
-        Object renderCube(cubeTri);
+        cubeTransform.rotate(0, 10, 0);
+        Object renderCube(cubeTri.mesh, cubeTransform, mat);
 
         std::clog << "render start:" << std::endl;
         renderCube.mesh.print();
@@ -96,7 +97,7 @@ int main() {
         std::clog << ">>>>>>>>>>>>>>>>>to world space:" << std::endl;
         renderCube.mesh.print();
 
-        shader::shadingVertex(renderCube, sun);
+        shader::shadingVertex(renderCube, sun, renderCam.transform.getPosition(), Color(0.1, 0.1, 0.1, 1));
 
         shader::transformObjToViewSpace(renderCube, renderCam);
         std::clog << ">>>>>>>>>>>>>>>>>to view space:" << std::endl;
@@ -119,7 +120,9 @@ int main() {
         std::clog << ">>>>>>>>>>>>>>>>>to viewport space:" << std::endl;
         renderCube.mesh.print();
 
+        BeginBatchDraw();
         shader::rasterizeObject(renderCube);
+        EndBatchDraw();
 
         const maths::Vector3 &camPos = cameraWorldTransform.getPosition();
         const maths::Vector3 &camRot = cameraWorldTransform.getRotation();

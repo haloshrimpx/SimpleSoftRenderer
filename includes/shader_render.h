@@ -20,25 +20,36 @@ namespace shader {
      * 为物体的顶点计算光照
      * @param object
      * @param dirLight
+     * @param ambient
+     * @param camPos
      */
-    void shadingVertex(Object &object, const DirectionalLight &dirLight);
+
+    void shadingVertex(Object &object, const DirectionalLight &dirLight, const maths::Vector3 &camPos,
+                       const Color &ambient);
+
+    /**
+     * 为物体的面计算光照
+     * @param object
+     * @param dirLight
+     */
+    void shadingFace(Object &object, const DirectionalLight &dirLight);
 
     /**
      * 求位置对于三角形重心的权重
      * @param triangle
      * @param p
-     * @return x: alpha | y: beta | z: gamma
+     * @return x: alpha | y: beta | z: gamma | w:flag
      */
-    maths::Vector3 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p);
+    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p);
 
     /**
     * 求位置对于三角形重心的权重，预计算三角形面积
     * @param triangle
     * @param area
     * @param p
-    * @return x: alpha | y: beta | z: gamma
+    * @return x: alpha | y: beta | z: gamma | w:flag
     */
-    maths::Vector3 getTriangleWeight(const geometry::Vertex triangle[3], double area, const maths::Vector2 &p);
+    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], double area, const maths::Vector2 &p);
 
     /**
      * 插值顶点颜色
@@ -52,6 +63,8 @@ namespace shader {
     void renderPixelDepth(geometry::Vertex vertices[3], const maths::Vector2 &p);
 
     void renderPixelColor(geometry::Vertex vertices[3], const maths::Vector2 &p);
+
+    void renderVertexNormal(geometry::Vertex vertices[3], const maths::Vector2 &p);
 
     void renderTriangleWireframe(geometry::Vertex vertices[3]);
 }

@@ -12,6 +12,10 @@ class Material;
 Color calcDiffuse(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal,
                   const maths::Vector3 &lightDir);
 
+
+Color calcSpecular(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal, const double gloss,
+                   const maths::Vector3 &lightDir, const maths::Vector3 &viewDir);
+
 /**
  * 颜色类
  * x - r, y - g, z - b, w - a
@@ -46,6 +50,10 @@ public:
     Color toLinearColor() const;
 
     Color toSRGBColor() const;
+
+    Color sRGBClamp() const;
+
+    Color linearClamp() const;
 
     static Color lerp(const Color &a, const Color &b, double t);
 

@@ -36,10 +36,10 @@ namespace shader {
     double calcDotOfPlane(const maths::Vector4 &plane, const maths::Vector4 &vec);
 
     /**
- * 三角形是否正方向面向摄像机
- * @param vertices
- * @return
- */
+     * 三角形是否正方向面向摄像机
+     * @param vertices
+     * @return
+     */
     bool isTriangleFacing(const std::vector<geometry::Vertex> &vertices);
 
     void clipMesh(geometry::Mesh &mesh);
