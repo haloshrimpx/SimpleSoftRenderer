@@ -7,3 +7,7 @@ It has a massive performance issue because I just use a simple and direct way to
 It will show a cube at screen, you can use WASD to move and IJKL to rotate.
 
 Cube will rotate each frame.
+
+![RenderedCube](img/renderImg.png)
+
+![WireFrameCube](img/wireframe.png)
