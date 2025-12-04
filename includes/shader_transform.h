@@ -46,12 +46,6 @@ namespace shader {
     void transformObjToPerspProjSpace(Object &object, const Camera &camera);
 
     /**
-     * 裁剪物体顶点组
-     * @param object
-     */
-    void clipObjectVertices(Object &object);
-
-    /**
      * 在观察空间中对三角形进行背向裁剪
      * @param object
      */

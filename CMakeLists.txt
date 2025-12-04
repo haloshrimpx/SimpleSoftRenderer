@@ -34,6 +34,8 @@ add_executable(SoftRenderer main.cpp
         includes/shader_render.h
         includes/Material.cpp
         includes/Material.h
+        Buffer.cpp
+        Buffer.h
 )
 
 target_link_libraries(SoftRenderer libeasyx.a)

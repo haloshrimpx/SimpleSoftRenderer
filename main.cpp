@@ -3,6 +3,7 @@
 #include <vector>
 #include <conio.h>
 
+#include "Buffer.h"
 #include "includes/Camera.h"
 #include "includes/Light.h"
 #include "includes/Object.h"
@@ -40,7 +41,7 @@ int main() {
     // 世界空间变换
     Transform cubeTransform(
         {0, 0, 0},
-        {30, 45, 30},
+        {20, 30, 20},
         {1, 1, 1}
     );
 
@@ -80,6 +81,8 @@ int main() {
         }
     );
 
+    Buffer renderBuffer(SCREEN_WIDTH, SCREEN_HEIGHT);
+
     // 开始渲染
     initgraph(SCREEN_WIDTH, SCREEN_HEIGHT);
 
@@ -88,41 +91,7 @@ int main() {
         cubeTransform.rotate(0, 10, 0);
         Object renderCube(cubeTri.mesh, cubeTransform, mat);
 
-        std::clog << "render start:" << std::endl;
-        renderCube.mesh.print();
-
-        cleardevice();
-
-        shader::transformObjToWorldSpace(renderCube);
-        std::clog << ">>>>>>>>>>>>>>>>>to world space:" << std::endl;
-        renderCube.mesh.print();
-
-        shader::shadingVertex(renderCube, sun, renderCam.transform.getPosition(), Color(0.1, 0.1, 0.1, 1));
-
-        shader::transformObjToViewSpace(renderCube, renderCam);
-        std::clog << ">>>>>>>>>>>>>>>>>to view space:" << std::endl;
-        renderCube.mesh.print();
-
-        shader::backFaceCulling(renderCube);
-        std::clog << ">>>>>>>>>>>>>>>>>back face culling:" << std::endl;
-        renderCube.mesh.print();
-
-        shader::transformObjToPerspProjSpace(renderCube, renderCam);
-        std::clog << ">>>>>>>>>>>>>>>>>to persp space:" << std::endl;
-        renderCube.mesh.print();
-
-        shader::clipObjectVertices(renderCube);
-        shader::applyPerspectiveDivision(renderCube);
-        std::clog << ">>>>>>>>>>>>>>>>>apply division:" << std::endl;
-        renderCube.mesh.print();
-
-        shader::transformObjToViewportSpace(renderCube, SCREEN_WIDTH, SCREEN_HEIGHT);
-        std::clog << ">>>>>>>>>>>>>>>>>to viewport space:" << std::endl;
-        renderCube.mesh.print();
-
-        BeginBatchDraw();
-        shader::rasterizeObject(renderCube);
-        EndBatchDraw();
+        shader::vertexShadingPipeline(renderCube, sun, renderCam, renderBuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
 
         const maths::Vector3 &camPos = cameraWorldTransform.getPosition();
         const maths::Vector3 &camRot = cameraWorldTransform.getRotation();

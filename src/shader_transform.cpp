@@ -61,8 +61,6 @@ namespace shader {
 
             maths::Vector3 viewDir = (vertices[0].pos - maths::VECTOR4_ZERO).toVector3();
             maths::Vector3 normal = calcTriangleNormal(vertices);
-            std::clog << "culling normal: " << std::endl;
-            normal.print();
 
             if (maths::Vector3::dot(normal, viewDir) < 0) {
                 // 在正面，将法线传入三角形
@@ -70,19 +68,8 @@ namespace shader {
             } else {
                 // 在背面，删除这个三角形
                 object.mesh.triangles.erase(object.mesh.triangles.begin() + i);
-                std::clog << "CULLING TRIANGLE " << i << std::endl;
             }
         }
-    }
-
-    void clipObjectVertices(Object &object) {
-        // 进行裁剪
-
-        std::clog << ">>>>>>>>>>>>>>>START CLIPPING: " << std::endl;
-        object.mesh.print();
-        clipMesh(object.mesh);
-        std::clog << ">>>>>>>>>>>>>>>CLIPPING COMPLETE : " << std::endl;
-        object.mesh.print();
     }
 
     void applyPerspectiveDivision(Object &object) {

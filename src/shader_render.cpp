@@ -9,12 +9,59 @@
 #include <graphics.h>
 #include <iostream>
 
+#include "../Buffer.h"
+#include "../includes/Camera.h"
 #include "../includes/shader_geometry.h"
+#include "../includes/shader_transform.h"
 #include "../includes/Light.h"
 #include "../includes/Object.h"
 
 namespace shader {
-    void rasterizeObject(const Object &object) {
+    void renderBuffer(const Buffer &buffer) {
+        maths::Vector2 size = buffer.getBufferSize();
+        const Color *colorBuffer = buffer.getColorBuffer();
+        // 行
+        for (int j = 0; j < size.y; ++j) {
+            for (int i = 0; i < size.x; ++i) {
+                // 列
+                Color pixel = colorBuffer[buffer.getIndex(i, j)];
+                putpixel(i, j, RGB(pixel.r, pixel.g, pixel.b));
+            }
+        }
+    }
+
+    void vertexShadingPipeline(const Object &renderObject, const DirectionalLight &light, const Camera &camera,
+                               const Buffer &buffer, const int screenWidth, const int screenHeight) {
+        Object renderCube = renderObject;
+        Camera renderCam = camera;
+        DirectionalLight sun = light;
+        cleardevice();
+
+        transformObjToWorldSpace(renderCube);
+
+        shadingVertex(renderCube, sun, renderCam.transform.getPosition(), Color(0.1, 0.1, 0.1, 1));
+
+        transformObjToViewSpace(renderCube, renderCam);
+
+        backFaceCulling(renderCube);
+
+        transformObjToPerspProjSpace(renderCube, renderCam);
+
+        clipMesh(renderCube.mesh);
+        applyPerspectiveDivision(renderCube);
+
+        transformObjToViewportSpace(renderCube, screenWidth, screenHeight);
+        BeginBatchDraw();
+
+        rasterizeObject(renderCube, buffer);
+
+        renderBuffer(buffer);
+        buffer.clear();
+
+        EndBatchDraw();
+    }
+
+    void rasterizeObject(const Object &object, const Buffer &buffer) {
         const geometry::Mesh &mesh = object.mesh;
         const size_t triangleCount = mesh.triangles.size();
 
@@ -34,10 +81,10 @@ namespace shader {
             for (int j = 0; j < height; ++j) {
                 for (int k = 0; k < width; ++k) {
                     maths::Vector2 pos = {startPoint.x + k, startPoint.y + j};
-                    renderPixelColor(vertices, pos);
+                    renderVertexNormal(vertices, pos, buffer);
                 }
             }
-            renderTriangleWireframe(vertices);
+            // renderTriangleWireframe(vertices);
         }
     }
 
@@ -57,6 +104,10 @@ namespace shader {
                                      lightDir);
             vertex.vertColor = spec + diff + ambient;
         }
+    }
+
+    void shadingFace(Object &object, const DirectionalLight &dirLight) {
+        // TODO
     }
 
     maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p) {
@@ -130,6 +181,38 @@ namespace shader {
         return (alpha * iA * (1 / zA) + beta * iB * (1 / zB) + gamma * iC * (1 / zC)) * (1 / zP);
     }
 
+    maths::Vector4 perspCorrectionLerp(const geometry::Vertex triangle[3],
+                                       const maths::Vector4 &weight,
+                                       const maths::Vector4 &iA, const maths::Vector4 &iB, const maths::Vector4 &iC) {
+        double alpha = weight.x;
+        double beta = weight.y;
+        double gamma = weight.z;
+
+        double zA = triangle[0].pos.z;
+        double zB = triangle[1].pos.z;
+        double zC = triangle[2].pos.z;
+        double zP = 1 / (alpha / zA + beta / zB + gamma / zC);
+
+        // Ip = (alpha * iA / zA + beta * iB / zB + gamma * iC / zC) / zP
+        return (alpha * iA * (1 / zA) + beta * iB * (1 / zB) + gamma * iC * (1 / zC)) * (1 / zP);
+    }
+
+    /**
+     * 透视矫正插值深度
+     * @param triangle
+     * @param weight
+     * @return
+     */
+    double perspCorrectionLerpZ(const geometry::Vertex triangle[3], const maths::Vector4 &weight) {
+        double alpha = weight.x;
+        double beta = weight.y;
+        double gamma = weight.z;
+
+        double zA = triangle[0].pos.z;
+        double zB = triangle[1].pos.z;
+        double zC = triangle[2].pos.z;
+        return 1 / (alpha / zA + beta / zB + gamma / zC);
+    }
 
     Color lerpTriangleColor(const geometry::Vertex triangle[3], const maths::Vector2 &p) {
         // 权重(alpha, beta, gamma), 三者和为1
@@ -142,10 +225,33 @@ namespace shader {
         if (weight.w < 0) {
             return COLOR_INVALID;
         }
-        // 顶点颜色的透视校正
 
         // 插值深度
         const double z = alpha * triangle[0].pos.z + beta * triangle[1].pos.z + gamma * triangle[2].pos.z;
+
+        // 插值颜色
+        const Color &colA = triangle[0].vertColor * (1 / triangle[0].pos.z) * alpha;
+        const Color &colB = triangle[1].vertColor * (1 / triangle[1].pos.z) * beta;
+        const Color &colC = triangle[2].vertColor * (1 / triangle[2].pos.z) * gamma;
+
+        Color res = (colA + colB + colC) * (1 / z);
+        res.a = 1;
+        return res;
+    }
+
+    Color lerpTriangleColor(const geometry::Vertex triangle[3], const maths::Vector2 &p, const maths::Vector4 &weight,
+                            const double z) {
+        double alpha = weight.x;
+        double beta = weight.y;
+        double gamma = weight.z;
+
+        // 如果点在三角形外
+        if (weight.w < 0) {
+            return COLOR_INVALID;
+        }
+
+        // 插值深度
+        // const double z = alpha * triangle[0].pos.z + beta * triangle[1].pos.z + gamma * triangle[2].pos.z;
 
         // 插值颜色
         const Color &colA = triangle[0].vertColor * (1 / triangle[0].pos.z) * alpha;
@@ -162,17 +268,24 @@ namespace shader {
      * 如果像素位置在三角形外，就不渲染
      * @param vertices
      * @param p
+     * @param buffer
      */
-    void renderPixelDepth(geometry::Vertex vertices[3], const maths::Vector2 &p) {
+    void renderPixelDepth(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer) {
         maths::Vector4 weight = getTriangleWeight(vertices, p);
         if (weight.w < 0)
             return;
-        double z = Color::mapLinearToSRGB(1 - (weight.x * vertices[0].pos.z
-                                               + weight.y * vertices[1].pos.z
-                                               + weight.z * vertices[2].pos.z));
+
+        double z = perspCorrectionLerpZ(vertices, weight);
+        Color pixCol(z, z, z);
+
+        // double z = Color::mapLinearToSRGB(1 - (weight.x * vertices[0].pos.z
+        //                                        + weight.y * vertices[1].pos.z
+        //                                        + weight.z * vertices[2].pos.z));
         int x = std::round(p.x);
         int y = std::round(p.y);
-        putpixel(x, y, RGB(z, z, z));
+
+        buffer.writeColorBuffer(x, y, pixCol.toSRGBColor().sRGBClamp(), z);
+        // putpixel(x, y, RGB(z, z, z));
     }
 
     /**
@@ -180,29 +293,39 @@ namespace shader {
      * 如果像素位置在三角形外，就不渲染
      * @param vertices
      * @param p
+     * @param buffer
      */
-    void renderPixelColor(geometry::Vertex vertices[3], const maths::Vector2 &p) {
-        Color pixColor = lerpTriangleColor(vertices, p).toSRGBColor().sRGBClamp();
-
+    void renderPixelColor(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer) {
+        // Color pixColor = lerpTriangleColor(vertices, p).toSRGBColor().sRGBClamp();
+        maths::Vector4 weight = getTriangleWeight(vertices, p);
         // 判断点是否在面内
-        if (pixColor.a < 0)
+        if (weight.w < 0)
             return;
+
+        double z = perspCorrectionLerpZ(vertices, weight);
+        Color pixCol = lerpTriangleColor(vertices, p, weight, z).toSRGBColor().sRGBClamp();
 
         int x = std::round(p.x);
         int y = std::round(p.y);
-        putpixel(x, y, RGB(pixColor.r, pixColor.g, pixColor.b));
+
+        buffer.writeColorBuffer(x, y, pixCol, z);
+        // int x = std::round(p.x);
+        // int y = std::round(p.y);
+        // putpixel(x, y, RGB(pixColor.r, pixColor.g, pixColor.b));
     }
 
     /**
      * 对像素插值顶点法线，并且映射到颜色
      * @param vertices
      * @param p
+     * @param buffer
      */
-    void renderVertexNormal(geometry::Vertex vertices[3], const maths::Vector2 &p) {
+    void renderVertexNormal(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer) {
         maths::Vector4 weight = getTriangleWeight(vertices, p);
         if (weight.w < 0)
             return;
 
+        double z = perspCorrectionLerpZ(vertices, weight);
         maths::Vector3 normal = perspCorrectionLerp(vertices, weight,
                                                     vertices[0].vertNormal,
                                                     vertices[1].vertNormal,
@@ -210,7 +333,11 @@ namespace shader {
 
         int x = std::round(p.x);
         int y = std::round(p.y);
-        putpixel(x, y, RGB(normal.x, normal.y, normal.z));
+
+        buffer.writeColorBuffer(x, y, {
+                                    static_cast<float>(normal.x), static_cast<float>(normal.y),
+                                    static_cast<float>(normal.z)
+                                }, z);
     }
 
     /**
@@ -222,11 +349,7 @@ namespace shader {
         for (int p = 0; p < 3; ++p) {
             maths::Vector2 start = vertices[p].pos.toVector2();
             maths::Vector2 end = vertices[(p + 1) % 3].pos.toVector2();
-            std::clog << "draw line: " << std::endl;
-            start.print();
-            end.print();
             line(start.x, start.y, end.x, end.y);
-            // drawLine(start, end);
         }
     }
 }
