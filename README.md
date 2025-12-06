@@ -16,7 +16,7 @@ Pixels will appear on the opposite side when they go beyond the screen boundarie
 
 ![SusannaSolid](img/susanna_solid.png)
 
-![SusannaWireframe](img/susanna_wireframe.png)
+![SusannaWireframe](img/susanna_wireframe.png)ad
 
 ![SphereSolid](img/sphere_solid.png)
 
