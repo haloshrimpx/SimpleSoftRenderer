@@ -4,7 +4,7 @@
 
 #ifndef SOFTRENDERER_BUFFER_H
 #define SOFTRENDERER_BUFFER_H
-#include "includes/Color.h"
+#include "Color.h"
 
 class Buffer {
 public:
@@ -20,9 +20,9 @@ public:
 
     bool writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const;
 
-    void clear() const;
-
     int getIndex(int x, int y) const;
+
+    void clear() const;
 
 private:
     int bufferWidth, bufferHeight;

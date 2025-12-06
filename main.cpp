@@ -3,25 +3,23 @@
 #include <vector>
 #include <conio.h>
 
-#include "Buffer.h"
+#include "includes/Buffer.h"
+#include "includes/obj_reader.h"
 #include "includes/Camera.h"
 #include "includes/Light.h"
 #include "includes/Object.h"
 #include "includes/shader_render.h"
-#include "includes/shader_transform.h"
 #include "includes/Transform.h"
 
-std::vector<std::array<geometry::Vertex, 3> > generateVertForTest(
+std::vector<std::array<geom::Vertex, 3> > generateVertForTest(
     const std::vector<std::array<maths::Vector3, 3> > &verts) {
-    std::vector<std::array<geometry::Vertex, 3> > output;
+    std::vector<std::array<geom::Vertex, 3> > output;
     // 遍历顶点组，获取array
     for (const auto &vert: verts) {
-        std::array<geometry::Vertex, 3> vertArr;
+        std::array<geom::Vertex, 3> vertArr;
         for (int i = 0; i < 3; ++i) {
-            geometry::Vertex newVert;
+            geom::Vertex newVert;
             newVert.pos = vert[i].toVector4(1);
-            newVert.vertNormal = (vert[i] - maths::VECTOR3_ZERO).normalize();
-            newVert.vertColor = Color(1, 0.5, 0.5);
 
             vertArr[i] = newVert;
         }
@@ -36,45 +34,33 @@ int main() {
     constexpr int SCREEN_WIDTH = 800;
     constexpr int SCREEN_HEIGHT = 600;
 
-    // std::clog.rdbuf(nullptr);
+    std::clog.rdbuf(nullptr);
 
     // 世界空间变换
     Transform cubeTransform(
         {0, 0, 0},
-        {20, 30, 20},
+        {20, 0, 20},
         {1, 1, 1}
     );
 
     Transform cameraWorldTransform(
-        {0, 0, 5},
+        {0, 0, 3},
         {0, 0, 0}, // 左手坐标系中，绕y+轴顺时针旋转为正方向
         {1, 1, 1}
     );
 
     Camera camera(60, 0.5, 100, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
 
-    std::vector<std::array<maths::Vector3, 3> > mesh = {
-        // Front
-        {{{-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}}},
-        {{{-1.0f, -1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f}}},
-        // Back
-        {{{1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f}}},
-        {{{1.0f, -1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}}},
-        // Right
-        {{{1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, -1.0f}}},
-        {{{1.0f, -1.0f, 1.0f}, {1.0f, 1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}}},
-        // Left
-        {{{-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f}}},
-        {{{-1.0f, -1.0f, -1.0f}, {-1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, -1.0f}}},
-        // Top
-        {{{-1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}}},
-        {{{-1.0f, 1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, -1.0f}}},
-        // Bottom
-        {{{-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, 1.0f}}},
-        {{{-1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, 1.0f}, {-1.0f, -1.0f, 1.0f}}}
-    };
+    geom::Mesh mesh;
+    // 读取文件
+    if (objreader::tryReadObjFile("Susanna.obj", mesh))
+        std::clog << "READ SUCCESS" << std::endl;
+    else return 1;
+
+    mesh.print();
+
     Material mat(COLOR_WHITE, COLOR_BLACK, 32);
-    Object cubeTri(generateVertForTest(mesh), cubeTransform, mat);
+    Object cubeTri(mesh, cubeTransform, mat);
     DirectionalLight sun(
         COLOR_WHITE, 1.0, {
             {0, 0, 0}, {0, 0, 0}, {1, 1, 1}

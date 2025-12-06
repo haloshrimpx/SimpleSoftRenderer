@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 double square(const double value) {
@@ -270,6 +271,16 @@ namespace maths {
 
     void Vector3::print() const {
         std::clog << " x = " << x << ",\t y = " << y << ",\t z = " << z << std::endl;
+    }
+
+    std::string Vector3::formatVector3() const {
+        std::stringstream ss;
+        //vec3-NumxNumyNumz
+        ss << "vec3-";
+        ss << x;
+        ss << y;
+        ss << z;
+        return ss.str();
     }
 
     double Vector3::getMagnitude() const {

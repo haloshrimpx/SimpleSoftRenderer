@@ -6,27 +6,27 @@
 
 #include <iostream>
 
-namespace geometry {
-    Rectangle::Rectangle(const maths::Vector2 &origin, const double width, const double height) {
-        originPoint = origin;
-        this->height = height;
+namespace geom {
+    Rectangle::Rectangle(int originX, int originY, int width, int height) {
+        this->originX = originX;
+        this->originY = originY;
         this->width = width;
+        this->height = height;
     }
 
     maths::Vector2 Rectangle::calcUpperLeftPosition() const {
-        return {originPoint.x, originPoint.y + width};
+        return {static_cast<double>(originX), static_cast<double>(originY + width)};
     }
 
     maths::Vector2 Rectangle::calcUpperRightPosition() const {
-        return {originPoint.x + width, originPoint.y + width};
+        return {static_cast<double>(originX + width), static_cast<double>(originY + width)};
     }
 
     maths::Vector2 Rectangle::calcLowerRightPosition() const {
-        return {originPoint.x + width, originPoint.y};
+        return {static_cast<double>(originX + width), static_cast<double>(originY)};
     }
 
-    void Rectangle::print() const {
-        std::clog << "Rectangle: width = " << width << "\t height = " << height << std::endl;
-        originPoint.print();
+    maths::Vector2 Rectangle::getOriginPoint() const {
+        return {static_cast<double>(originX), static_cast<double>(originY)};
     }
 }

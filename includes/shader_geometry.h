@@ -14,6 +14,7 @@
 
 
 namespace shader {
+    const maths::Vector4 PLANE_W(0, 0, 0, 1);
     const maths::Vector4 PLANE_NEAR(0, 0, 1, 1);
 
     const maths::Vector4 PLANE_FAR(0, 0, -1, 1);
@@ -26,12 +27,13 @@ namespace shader {
 
     const maths::Vector4 PLANE_BOTTOM(0, 1, 0, 1);
 
-    bool isInsideTriangle(const geometry::Vertex vert[3], const maths::Vector2 &position);
+    bool isInsideTriangle(const geom::Vertex vert[3], const maths::Vector2 &position);
 
-    geometry::Rectangle calcTriangleBound(const geometry::Vertex vert[3]);
+    geom::Rectangle calcTriangleBound(const geom::Vertex vert[3]);
 
-    std::vector<geometry::Vertex> clipVertices(const maths::Vector4 &plane,
-                                               const std::vector<geometry::Vertex> &verticesInput);
+    bool clipVertices(const maths::Vector4 &plane,
+                      std::vector<geom::Vertex> &vertices, std::vector<maths::Vector3> &normals,
+                      std::vector<Color> &colors);
 
     double calcDotOfPlane(const maths::Vector4 &plane, const maths::Vector4 &vec);
 
@@ -40,17 +42,17 @@ namespace shader {
      * @param vertices
      * @return
      */
-    bool isTriangleFacing(const std::vector<geometry::Vertex> &vertices);
+    bool isTriangleFacing(const std::vector<geom::Vertex> &vertices);
 
-    void clipMesh(geometry::Mesh &mesh);
+    void clipMesh(geom::Mesh &mesh);
 
     // static Vector4 calcIntersection(const Vector4 &p1, const Vector4 &p2, double t);
 
     double threeDotCross(const maths::Vector2 &a, const maths::Vector2 &b, const maths::Vector2 &p);
 
-    maths::Vector3 calcTriangleNormal(const std::vector<geometry::Vertex> &vertices);
+    maths::Vector3 calcTriangleNormal(const std::vector<geom::Vertex> &vertices);
 
-    maths::Vector3 calcTriangleNormal(const geometry::Vertex &a, const geometry::Vertex &b, const geometry::Vertex &c);
+    maths::Vector3 calcTriangleNormal(const geom::Vertex &a, const geom::Vertex &b, const geom::Vertex &c);
 
     double calcDoubleTriangleArea(const maths::Vector2 &a, const maths::Vector2 &b, const maths::Vector2 &c);
 }

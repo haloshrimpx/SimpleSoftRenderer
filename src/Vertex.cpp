@@ -7,13 +7,11 @@
 #include <iostream>
 #include  <sstream>
 
-namespace geometry {
+namespace geom {
     Vertex::Vertex() = default;
 
     Vertex::Vertex(const Vertex &vert) {
         pos = vert.pos;
-        vertNormal = vert.vertNormal;
-        vertColor = vert.vertColor;
     }
 
     Vertex::Vertex(const maths::Vector3 &vec) {
@@ -24,28 +22,9 @@ namespace geometry {
         pos = vec;
     }
 
-    Vertex::Vertex(const maths::Vector4 &vec, const maths::Vector3 &normal) {
-        pos = vec;
-        vertNormal = normal;
-    }
-
-    Vertex::Vertex(const maths::Vector3 &vec, const maths::Vector3 &normal, const Color &color) {
-        pos = vec.toVector4(1);
-        vertNormal = normal;
-        vertColor = color;
-    }
-
-    Vertex::Vertex(const maths::Vector4 &vec, const maths::Vector3 &normal, const Color &color) {
-        pos = vec;
-        vertNormal = normal;
-        vertColor = color;
-    }
-
     Vertex Vertex::lerp(const Vertex &a, const Vertex &b, const double t) {
         Vertex res;
         res.pos = maths::Vector4::lerp(a.pos, b.pos, t);
-        res.vertNormal = maths::Vector3::lerp(a.vertNormal, b.vertNormal, t);
-        res.vertColor = Color::lerp(a.vertColor, b.vertColor, t);
         return res;
     }
 

@@ -5,6 +5,7 @@
 #ifndef SOFTRENDERER_VECTOR_H
 #define SOFTRENDERER_VECTOR_H
 #include <array>
+#include <string>
 
 namespace maths {
     class Vector2;
@@ -102,6 +103,8 @@ namespace maths {
         std::array<double, 3> toArray() const;
 
         void print() const;
+
+        std::string formatVector3() const;
 
         double getMagnitude() const;
 

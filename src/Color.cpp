@@ -64,6 +64,13 @@ Color::Color(const float r, const float g, const float b, const float a) {
     this->a = b;
 }
 
+Color::Color(const Color &color) {
+    r = color.r;
+    g = color.g;
+    b = color.b;
+    a = color.a;
+}
+
 Color::~Color() = default;
 
 
@@ -181,5 +188,5 @@ float Color::mapSRGBToLinear(const int valSRGB) {
 }
 
 void Color::print() const {
-    printf("Color: r = %.1f, g = %.1f, b = %.1f, a = %.1f \n", r, g, b, a);
+    std::clog << "Color(" << r << ", " << g << ", " << b << ", " << a << ")" << std::endl;
 }

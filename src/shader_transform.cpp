@@ -53,8 +53,8 @@ namespace shader {
 
     void backFaceCulling(Object &object) {
         for (int i = object.mesh.triangles.size() - 1; i >= 0; --i) {
-            geometry::Triangle &triangle = object.mesh.triangles[i];
-            std::vector<geometry::Vertex> vertices;
+            geom::Triangle &triangle = object.mesh.triangles[i];
+            std::vector<geom::Vertex> vertices;
             triangle.getVertex(vertices, object.mesh);
 
             // edge1 = 1 - 0, edge2 = 2 - 1s
@@ -62,11 +62,9 @@ namespace shader {
             maths::Vector3 viewDir = (vertices[0].pos - maths::VECTOR4_ZERO).toVector3();
             maths::Vector3 normal = calcTriangleNormal(vertices);
 
-            if (maths::Vector3::dot(normal, viewDir) < 0) {
-                // 在正面，将法线传入三角形
-                triangle.faceNormal = normal.toVector4(0);
-            } else {
+            if (maths::Vector3::dot(normal, viewDir) > 0) {
                 // 在背面，删除这个三角形
+                std::clog << "culling back face" << std::endl;
                 object.mesh.triangles.erase(object.mesh.triangles.begin() + i);
             }
         }

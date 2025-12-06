@@ -6,6 +6,12 @@
 #define SOFTRENDERER_SHADER_RENDER_H
 #include "Color.h"
 #include "Vertex.h"
+
+namespace geom {
+    class Mesh;
+    class Triangle;
+}
+
 class Camera;
 class Buffer;
 class DirectionalLight;
@@ -61,7 +67,7 @@ namespace shader {
      * @param p
      * @return x: alpha | y: beta | z: gamma | w:flag
      */
-    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], const maths::Vector2 &p);
+    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], const maths::Vector2 &p);
 
     /**
     * 求位置对于三角形重心的权重，预计算三角形面积
@@ -70,7 +76,7 @@ namespace shader {
     * @param p
     * @return x: alpha | y: beta | z: gamma | w:flag
     */
-    maths::Vector4 getTriangleWeight(const geometry::Vertex triangle[3], double area, const maths::Vector2 &p);
+    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], double area, const maths::Vector2 &p);
 
     /**
      *
@@ -81,36 +87,41 @@ namespace shader {
      * @param iC
      * @return
      */
-    double perspCorrectionLerp(const geometry::Vertex triangle[3],
+    double perspCorrectionLerp(const geom::Vertex triangle[3],
                                const maths::Vector4 &weight,
-                               const double iA, const double iB, const double iC);
+                               double iA, const double iB, const double iC);
 
-    maths::Vector3 perspCorrectionLerp(const geometry::Vertex triangle[3],
+    maths::Vector3 perspCorrectionLerp(const geom::Vertex triangle[3],
                                        const maths::Vector4 &weight,
                                        const maths::Vector3 &iA, const maths::Vector3 &iB, const maths::Vector3 &iC);
 
-    maths::Vector4 perspCorrectionLerp(const geometry::Vertex triangle[3],
+    maths::Vector4 perspCorrectionLerp(const geom::Vertex triangle[3],
                                        const maths::Vector4 &weight,
                                        const maths::Vector4 &iA, const maths::Vector4 &iB, const maths::Vector4 &iC);
+
+    double perspCorrectionLerpZ(const geom::Vertex triangle[3], const maths::Vector4 &weight);
 
     /**
      * 插值顶点颜色
      * 如果p不在三角形内，返回颜色的a将为1
      * @param triangle
+     * @param mesh
      * @param p
+     * @param z
      * @return
      */
-    Color lerpTriangleColor(const geometry::Vertex triangle[3], const maths::Vector2 &p);
-
-    Color lerpTriangleColor(const geometry::Vertex triangle[3], const maths::Vector2 &p, const maths::Vector4 &weight,
+    Color lerpTriangleColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &p, const maths::Vector4 &weight,
                             double z);
 
-    void renderPixelDepth(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer);
+    void renderPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                          const Buffer &buffer);
 
-    void renderPixelColor(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer);
+    void renderPixelColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                          const Buffer &buffer);
 
-    void renderVertexNormal(geometry::Vertex vertices[3], const maths::Vector2 &p, const Buffer &buffer);
+    void renderVertexNormal(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                            const Buffer &buffer);
 
-    void renderTriangleWireframe(geometry::Vertex vertices[3]);
+    void renderTriangleWireframe(geom::Vertex vertices[3]);
 }
 #endif //SOFTRENDERER_SHADER_RENDER_H

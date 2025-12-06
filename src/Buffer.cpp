@@ -2,8 +2,9 @@
 // Created by Haloshrimp on 2025/12/4.
 //
 
-#include "Buffer.h"
+#include "../includes/Buffer.h"
 
+#include <algorithm>
 #include <iostream>
 
 /**
@@ -15,7 +16,7 @@ Buffer::Buffer(int width, int height) {
     int size = width * height;
     bufferHeight = height;
     bufferWidth = width;
-    colorBuffer = new Color[size];
+    colorBuffer = new Color[size]{};
     zBuffer = new double[size]{};
 }
 
@@ -57,13 +58,22 @@ const Color *Buffer::getColorBuffer() const {
  */
 bool Buffer::writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const {
     int idx = getIndex(x, y);
+    int maxIdx = getIndex(bufferWidth - 1, bufferHeight - 1);
+
+    // 检查索引是否越界
+    if (idx > maxIdx)
+        return false;
+
     double bufferZ = zBuffer[idx];
+
+    // z Near [0 - 1] Far
     // 离屏幕越近深度越小，写入
-    if (z > bufferZ) {
-        colorBuffer[idx] = sRGBCol;
+    if (z < bufferZ) {
+        colorBuffer[idx] = sRGBCol; // 更新颜色
+        zBuffer[idx] = z; // 更新深度
         return true;
     }
-    std::cout << "z write failed: " << z << std::endl;
+    // std::cout << "z write failed: " << z << std::endl;
     return false;
 }
 
@@ -72,7 +82,7 @@ bool Buffer::writeColorBuffer(int x, int y, const Color &sRGBCol, double z) cons
  */
 void Buffer::clear() const {
     std::fill_n(colorBuffer, bufferWidth * bufferHeight, Color{0, 0, 0, 0});
-    std::fill_n(zBuffer, bufferWidth * bufferHeight, 0.0);
+    std::fill_n(zBuffer, bufferWidth * bufferHeight, 1);
 }
 
 int Buffer::getIndex(int x, int y) const {

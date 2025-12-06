@@ -10,17 +10,18 @@
 
 class Object {
 public:
-    geometry::Mesh mesh;
+    geom::Mesh mesh;
     Material material;
     Transform transform;
 
-    Object(const std::vector<std::array<maths::Vector3, 3> > &triangles, const Transform &transform,
-           const Material &material);
+    // Object(const std::vector<std::array<maths::Vector3, 3> > &triangles, const Transform &transform,
+    //        const Material &material);
+    //
+    // Object(const std::vector<std::array<geom::Vertex, 3> > &vertices, const Transform &transform,
+    //        const Material &material);
 
-    Object(const std::vector<std::array<geometry::Vertex, 3> > &vertices, const Transform &transform,
-           const Material &material);
-
-    Object(const geometry::Mesh &mesh, const Transform &transform, const Material &material);
+    Object(const geom::Mesh &mesh, const Transform &transform, const Material &material);
+    Object(const Object &other);
 
     ~Object();
 };

@@ -13,7 +13,7 @@ Color calcDiffuse(const Color &baseColor, const Color &lightColor, const maths::
                   const maths::Vector3 &lightDir);
 
 
-Color calcSpecular(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal, const double gloss,
+Color calcSpecular(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal, double gloss,
                    const maths::Vector3 &lightDir, const maths::Vector3 &viewDir);
 
 /**
@@ -32,6 +32,8 @@ public:
     explicit Color(const maths::Vector4 &vec);
 
     Color(float r, float g, float b, float a = 1);
+
+    Color(const Color &color);
 
     ~Color();
 

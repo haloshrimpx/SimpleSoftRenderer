@@ -6,7 +6,7 @@
 #define SOFTRENDERER_RECTANGLE_H
 #include "Vector.h"
 
-namespace geometry {
+namespace geom {
     /**
 * 平面矩形坐标，原点在左下角，y轴向上
 */
@@ -20,11 +20,14 @@ namespace geometry {
          * Pos-------------> x
          *      width
          */
-        double width; // 宽度
-        double height; // 高度
-        maths::Vector2 originPoint; // 原点坐标
+        int width; // 宽度
+        int height; // 高度
 
-        Rectangle(const maths::Vector2 &origin, double width, double height);
+        // 原点坐标
+        int originX;
+        int originY;
+
+        Rectangle(int originX, int originY, int width, int height);
 
         /**
          * @return 左上角坐标
@@ -43,7 +46,7 @@ namespace geometry {
          */
         maths::Vector2 calcLowerRightPosition() const;
 
-        void print() const;
+        maths::Vector2 getOriginPoint() const;
     };
 }
 #endif //SOFTRENDERER_RECTANGLE_H

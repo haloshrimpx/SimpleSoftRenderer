@@ -14,7 +14,7 @@ namespace maths {
     class Vector4;
 }
 
-namespace geometry {
+namespace geom {
     /**
    * 顶点结构体
    */
@@ -22,8 +22,6 @@ namespace geometry {
     public:
         // 顶点位置
         maths::Vector4 pos;
-        maths::Vector3 vertNormal;
-        Color vertColor;
 
         Vertex();
 
@@ -33,19 +31,13 @@ namespace geometry {
 
         explicit Vertex(const maths::Vector4 &vec);
 
-        Vertex(const maths::Vector4 &vec, const maths::Vector3 &normal);
-
-        Vertex(const maths::Vector3 &vec, const maths::Vector3 &normal, const Color &color);
-
-        Vertex(const maths::Vector4 &vec, const maths::Vector3 &normal, const Color &color);
-
         static Vertex lerp(const Vertex &a, const Vertex &b, double t);
 
         double &operator[](int index);
 
         maths::Vector4 operator-(const Vertex &vertex) const;
 
-        std::string formatVertex() const;
+        [[nodiscard]] std::string formatVertex() const;
 
         void print() const;
     };
