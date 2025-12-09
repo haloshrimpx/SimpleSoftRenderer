@@ -5,12 +5,14 @@
 #include "../includes/Camera.h"
 
 Camera::Camera(const double fov, const double zNear, const double zFar,
-               const double windowWidth, const double windowHeight,
+               const int windowWidth, const int windowHeight,
                const Transform &transform) {
     this->fov = fov;
     zoomFar = zFar;
     zoomNear = zNear;
+    this->windowWidth = windowWidth;
+    this->windowHeight = windowHeight;
     // 宽度与高度的比例
-    aspectRatio = windowWidth / windowHeight;
+    aspectRatio = (double) windowWidth / windowHeight;
     this->transform = transform;
 }

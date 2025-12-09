@@ -7,15 +7,35 @@
 #include <algorithm>
 #include <iostream>
 
+Buffer::Buffer(int width, int height) {
+    bufferWidth = width;
+    bufferHeight = height;
+}
+
+int Buffer::getBufferSize() const {
+    return bufferWidth * bufferHeight;
+}
+
+int Buffer::getHeight() const {
+    return bufferHeight;
+}
+
+int Buffer::getWidth() const {
+    return bufferWidth;
+}
+
+int Buffer::getIndex(int x, int y) const {
+    return y * bufferWidth + x;
+}
+
 /**
  * 初始化缓冲区
  * @param width 屏幕宽度
  * @param height 屏幕高度
  */
-Buffer::Buffer(int width, int height) {
+ScreenBuffer::ScreenBuffer(const int width, const int height) : Buffer(width, height) {
     int size = width * height;
-    bufferHeight = height;
-    bufferWidth = width;
+
     colorBuffer = new Color[size]{};
     zBuffer = new double[size]{};
 }
@@ -23,20 +43,17 @@ Buffer::Buffer(int width, int height) {
 /**
  * 析构缓冲区
  */
-Buffer::~Buffer() {
+ScreenBuffer::~ScreenBuffer() {
     delete[] colorBuffer;
     delete[] zBuffer;
 }
 
-maths::Vector2 Buffer::getBufferSize() const {
-    return {static_cast<double>(bufferWidth), static_cast<double>(bufferHeight)};
-}
 
 /**
  * 获取深度缓冲区的只读指针
  * @return
  */
-const double *Buffer::getZBuffer() const {
+const double *ScreenBuffer::getZBuffer() const {
     return zBuffer;
 }
 
@@ -44,7 +61,7 @@ const double *Buffer::getZBuffer() const {
  * 获取颜色缓冲区的只读指针
  * @return
  */
-const Color *Buffer::getColorBuffer() const {
+const Color *ScreenBuffer::getColorBuffer() const {
     return colorBuffer;
 }
 
@@ -56,9 +73,9 @@ const Color *Buffer::getColorBuffer() const {
  * @param z 坐标的深度
  * @return 写入是否成功
  */
-bool Buffer::writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const {
+bool ScreenBuffer::writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const {
     int idx = getIndex(x, y);
-    int maxIdx = getIndex(bufferWidth - 1, bufferHeight - 1);
+    int maxIdx = getIndex(getWidth() - 1, getHeight() - 1);
 
     // 检查索引是否越界
     if (idx > maxIdx)
@@ -80,11 +97,44 @@ bool Buffer::writeColorBuffer(int x, int y, const Color &sRGBCol, double z) cons
 /**
  * 清空缓冲区
  */
-void Buffer::clear() const {
-    std::fill_n(colorBuffer, bufferWidth * bufferHeight, Color{0, 0, 0, 0});
-    std::fill_n(zBuffer, bufferWidth * bufferHeight, 1);
+void ScreenBuffer::clear() const {
+    std::fill_n(colorBuffer, getBufferSize(), Color{0, 0, 0, 0});
+    std::fill_n(zBuffer, getBufferSize(), 1);
 }
 
-int Buffer::getIndex(int x, int y) const {
-    return x + y * bufferWidth;
+DepthBuffer::DepthBuffer(int width, int height) : Buffer(width, height) {
+    int size = width * height;
+
+    depthBuffer = new double[size]{};
+}
+
+DepthBuffer::~DepthBuffer() {
+    delete [] depthBuffer;
+}
+
+bool DepthBuffer::writeDepthBuffer(int x, int y, double z) const {
+    int idx = getIndex(x, y);
+    int maxIdx = getIndex(getWidth() - 1, getHeight() - 1);
+
+    // 检查索引是否越界
+    if (idx > maxIdx) return false;
+
+    double bufferZ = depthBuffer[idx];
+
+    // z Near [0 - 1] Far
+    // 离屏幕越近深度越小，写入
+    if (z < bufferZ) {
+        depthBuffer[idx] = z; // 更新深度
+        return true;
+    }
+
+    return false;
+}
+
+double DepthBuffer::getDepth(int x, int y) const {
+    return depthBuffer[getIndex(x, y)];
+}
+
+void DepthBuffer::clear() const {
+    std::fill_n(depthBuffer, getBufferSize(), 1);
 }

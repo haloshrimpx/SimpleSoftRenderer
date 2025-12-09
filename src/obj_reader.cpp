@@ -13,6 +13,7 @@ namespace objreader {
         // 尝试打开文件
         std::ifstream objFile(path);
         if (!objFile.is_open()) {
+            output = geom::Mesh();
             return false;
         }
 

@@ -10,6 +10,7 @@
 
 class Object {
 public:
+    std::string name;
     geom::Mesh mesh;
     Material material;
     Transform transform;
@@ -20,7 +21,10 @@ public:
     // Object(const std::vector<std::array<geom::Vertex, 3> > &vertices, const Transform &transform,
     //        const Material &material);
 
-    Object(const geom::Mesh &mesh, const Transform &transform, const Material &material);
+    Object(const std::string &name, const geom::Mesh &mesh, const Transform &transform, const Material &material);
+
+    Object(const std::string &name, const std::string &filepath, const Transform &transform, const Material &material);
+
     Object(const Object &other);
 
     ~Object();

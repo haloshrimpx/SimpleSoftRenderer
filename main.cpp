@@ -36,12 +36,6 @@ int main() {
 
     std::clog.rdbuf(nullptr);
 
-    // 世界空间变换
-    Transform cubeTransform(
-        {0, 0, 0},
-        {20, 0, 20},
-        {1, 1, 1}
-    );
 
     Transform cameraWorldTransform(
         {0, 0, 3},
@@ -51,41 +45,81 @@ int main() {
 
     Camera camera(60, 0.5, 100, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
 
-    geom::Mesh mesh;
-    // 读取文件
-    if (objreader::tryReadObjFile("Susanna.obj", mesh))
-        std::clog << "READ SUCCESS" << std::endl;
-    else return 1;
+    // geom::Mesh mesh;
+    // // 读取文件
+    // if (objreader::tryReadObjFile("SphereSmooth.obj", mesh))
+    //     std::clog << "READ SUCCESS" << std::endl;
+    // else
+    //     return 1;
 
-    mesh.print();
+    // mesh.print();
 
-    Material mat(COLOR_WHITE, COLOR_BLACK, 32);
-    Object cubeTri(mesh, cubeTransform, mat);
+    Material sphereMat(COLOR_WHITE, COLOR_BLACK, 1000);
+    Material susannaMat(COLOR_WHITE, COLOR_BLACK, 10);
+    Object sphere("sphere", "SphereSmooth.obj",
+                  {
+                      {2, 0, -3},
+                      {0, 0, 0},
+                      {1, 1, 1}
+                  }, sphereMat);
+    Object susanna("susanna", "Susanna.obj", {
+                       {0, 0, 0},
+                       {20, 0, 20},
+                       {1, 1, 1}
+                   }, susannaMat);
+    Object plane("plane", "Plane.obj", {
+                     {0, -2, -3},
+                     {0, 0, 0},
+                     {1, 1, 1}
+                 }, Material(COLOR_WHITE * 0.4, COLOR_BLACK, 10)
+    );
     DirectionalLight sun(
-        COLOR_WHITE, 1.0, {
-            {0, 0, 0}, {0, 0, 0}, {1, 1, 1}
+        COLOR_WHITE * 0.1, 0.1, {
+            {0, 0, 0}, {0, 0, -90}, {1, 1, 1}
+        }
+    );
+    PointLight point_light1(
+        1, Color(255, 203, 61).toLinearColor(), 1, {
+            {-1, 0, 1},
+            {0, 0, 0},
+            {1, 1, 1}
+        }
+    );
+    PointLight point_light2(
+        1, Color(11, 167, 255).toLinearColor(), 1, {
+            {1, 0, 1},
+            {0, 0, 0},
+            {1, 1, 1}
+        }
+    );
+    PointLight point_light3(
+        3, COLOR_RED, 1, {
+            {2, 2, -1},
+            {0, 0, 0},
+            {1, 1, 1}
         }
     );
 
-    Buffer renderBuffer(SCREEN_WIDTH, SCREEN_HEIGHT);
+    std::vector<std::unique_ptr<Light> > lights;
+    lights.push_back(std::make_unique<DirectionalLight>(sun));
+    lights.push_back(std::make_unique<PointLight>(point_light1));
+    lights.push_back(std::make_unique<PointLight>(point_light2));
+
+    ScreenBuffer renderBuffer(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // 开始渲染
     initgraph(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     while (true) {
         Camera renderCam(60, 0.01, 100, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
-        cubeTransform.rotate(0, 10, 0);
-        Object renderCube(cubeTri.mesh, cubeTransform, mat);
 
-        shader::vertexShadingPipeline(renderCube, sun, renderCam, renderBuffer, SCREEN_WIDTH, SCREEN_HEIGHT);
+        shader::gouraudShadingPipeline({susanna, sphere, plane}, lights, renderCam, renderBuffer);
 
         const maths::Vector3 &camPos = cameraWorldTransform.getPosition();
         const maths::Vector3 &camRot = cameraWorldTransform.getRotation();
-        const maths::Vector3 &objRotation = cubeTransform.getRotation();
+
         std::cout << "\n cam position: " << camPos.x << "\t" << camPos.y << "\t" << camPos.z << std::endl;
-        std::cout << "\n cam position: " << camRot.x << "\t" << camRot.y << "\t" << camRot.z << std::endl;
-        std::cout << "\n CUBE rotation: " << objRotation.x << "\t" << objRotation.y << "\t" << objRotation.z <<
-                std::endl;
+        std::cout << "\n cam rotation: " << camRot.x << "\t" << camRot.y << "\t" << camRot.z << std::endl;
 
         std::cout << "WAITING FOR INPUT:" << std::endl;
         char p = _getch();

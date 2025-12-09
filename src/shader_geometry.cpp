@@ -115,23 +115,11 @@ namespace shader {
                     maths::Vector3 normalIsc = maths::Vector3::lerp(currentNormal, prevNormal, t);
                     Color colorIsc = Color::lerp(currentColor, prevColor, t);
 
-                    std::clog << "add intersection point when current is inside" << std::endl;
-                    vertexIsc.print();
-
-                    std::clog << "add intersection color when current is inside" << std::endl;
-                    colorIsc.print();
-
                     vertOutput.push_back(vertexIsc);
                     normalsOutput.push_back(normalIsc);
                     colorsOutput.push_back(colorIsc);
                 }
                 // 添加当前点
-
-                std::clog << "add current point" << std::endl;
-                currentVert.print();
-
-                std::clog << "add current color" << std::endl;
-                currentColor.print();
 
                 vertOutput.push_back(currentVert);
                 normalsOutput.push_back(currentNormal);
@@ -144,12 +132,6 @@ namespace shader {
                 geom::Vertex vertexIsc = geom::Vertex::lerp(prevVert, currentVert, t);
                 maths::Vector3 normalIsc = maths::Vector3::lerp(currentNormal, prevNormal, t);
                 Color colorIsc = Color::lerp(currentColor, prevColor, t);
-
-                std::clog << "add intersection point when prev is inside" << std::endl;
-                vertexIsc.print();
-
-                std::clog << "add intersection color when prev is inside" << std::endl;
-                colorIsc.print();
 
                 vertOutput.push_back(vertexIsc);
                 normalsOutput.push_back(normalIsc);

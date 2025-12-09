@@ -388,6 +388,14 @@ namespace maths {
         return value;
     }
 
+    Vector4 &Vector4::operator*=(double val) {
+        this->x *= val;
+        this->y *= val;
+        this->z *= val;
+        this->w *= val;
+        return *this;
+    }
+
     double Vector4::dot(const Vector4 &a, const Vector4 &b) {
         return a.x * b.x
                + a.y * b.y

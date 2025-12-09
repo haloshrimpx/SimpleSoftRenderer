@@ -18,7 +18,8 @@
 
 namespace shader {
     void transformObjToWorldSpace(Object &object) {
-        maths::Matrix4x4 modelMatr = shader::getModelMatrix(object.transform);
+        // 变换顶点
+        maths::Matrix4x4 modelMatr = getModelMatrix(object.transform);
         std::cout << "model matrix:" << std::endl;
         modelMatr.print();
         size_t size = object.mesh.vertices.size();
@@ -26,7 +27,16 @@ namespace shader {
         for (int i = 0; i < size; ++i) {
             maths::Vector4 &pos = object.mesh.vertices[i].pos;
             pos = maths::Matrix4x4::multiply(modelMatr, pos);
-            pos.print();
+        }
+
+        // 变换法线
+        // NormalMatrix 是 ModelMatrix 的逆矩阵的转置矩阵( (M^-1)^T )
+        maths::Matrix4x4 normalMatr = modelMatr.inverse().transpose();
+        size = object.mesh.normals.size();
+
+        for (int i = 0; i < size; ++i) {
+            maths::Vector3 &normal = object.mesh.normals[i];
+            normal = maths::Matrix4x4::multiply(normalMatr, normal.toVector4(0)).toVector3().normalize();
         }
     }
 
@@ -50,8 +60,7 @@ namespace shader {
         }
     }
 
-
-    void backFaceCulling(Object &object) {
+    void cullingFaces(Object &object, const CullingMode &mode) {
         for (int i = object.mesh.triangles.size() - 1; i >= 0; --i) {
             geom::Triangle &triangle = object.mesh.triangles[i];
             std::vector<geom::Vertex> vertices;
@@ -62,9 +71,20 @@ namespace shader {
             maths::Vector3 viewDir = (vertices[0].pos - maths::VECTOR4_ZERO).toVector3();
             maths::Vector3 normal = calcTriangleNormal(vertices);
 
-            if (maths::Vector3::dot(normal, viewDir) > 0) {
-                // 在背面，删除这个三角形
-                std::clog << "culling back face" << std::endl;
+            // 检查剔除选项
+            bool flag = false;
+            switch (mode) {
+                case CullingMode::BACK:
+                    flag = maths::Vector3::dot(normal, viewDir) > 0;
+                    break;
+                case CullingMode::FRONT:
+                    flag = maths::Vector3::dot(normal, viewDir) < 0;
+                    break;
+                case CullingMode::NONE:
+                    return;
+            }
+
+            if (flag) {
                 object.mesh.triangles.erase(object.mesh.triangles.begin() + i);
             }
         }
@@ -122,6 +142,20 @@ namespace shader {
             {0, 0, 0, 1}
         };
         return maths::Matrix4x4(matr);
+    }
+
+    /**
+     * 获取旋转矩阵，ZYX 顺序
+     * @param rotation
+     * @return
+     */
+    maths::Matrix4x4 getRotationMatrix(const maths::Vector3 &rotation) {
+        maths::Matrix4x4 xRotationMatrix = getRotationMatrixX(rotation.x);
+        maths::Matrix4x4 yRotationMatrix = getRotationMatrixY(rotation.y);
+        maths::Matrix4x4 zRotationMatrix = getRotationMatrixZ(rotation.z);
+
+        return maths::Matrix4x4::multiply(xRotationMatrix,
+                                          maths::Matrix4x4::multiply(yRotationMatrix, zRotationMatrix));
     }
 
     maths::Matrix4x4 getRotationMatrixX(double degreeX) {
@@ -339,5 +373,31 @@ namespace shader {
         return maths::Matrix4x4::multiply(xRotationMatrix,
                                           maths::Matrix4x4::multiply(yRotationMatrix,
                                                                      maths::Matrix4x4::multiply(zRotationMatrix, vec)));
+    }
+
+    /**
+     * 将屏幕坐标转换为世界坐标
+     * @param screenPos
+     * @param invVPMatrix VP矩阵的逆矩阵
+     * @param scrW
+     * @param scrH
+     * @return
+     */
+    maths::Vector4 screenPosToWorld(const maths::Vector3 &screenPos, const maths::Matrix4x4 &invVPMatrix,
+                                    const int scrW, const int scrH) {
+        // 转换为NDC坐标
+        double ndcX = 2 * screenPos.x / scrW - 1;
+        double ndcY = 1 - 2 * screenPos.y / scrH; // Y反转
+        double ndcZ = 2 * screenPos.z - 1;
+
+        // 齐次坐标
+        maths::Vector4 pos = {ndcX, ndcY, ndcZ, 1};
+        pos = maths::Matrix4x4::multiply(invVPMatrix, pos); // 逆变换
+
+        // 透视除法
+        pos *= 1 / pos.w;
+
+        // 返回世界坐标
+        return pos;
     }
 }

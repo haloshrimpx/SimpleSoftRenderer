@@ -165,6 +165,8 @@ namespace maths {
 
         double operator[](int index) const;
 
+         Vector4 &operator*=(double val);
+
         static double dot(const Vector4 &a, const Vector4 &b);
 
         static Vector4 cross(const Vector4 &a, const Vector4 &b);

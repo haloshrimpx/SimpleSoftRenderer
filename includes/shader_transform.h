@@ -4,6 +4,7 @@
 
 #ifndef SOFTRENDERER_SHADER_TRANSFORM_H
 #define SOFTRENDERER_SHADER_TRANSFORM_H
+#include "shader_render.h"
 class Camera;
 class Transform;
 class Object;
@@ -46,10 +47,11 @@ namespace shader {
     void transformObjToPerspProjSpace(Object &object, const Camera &camera);
 
     /**
-     * 在观察空间中对三角形进行背向裁剪
+     * 在观察空间中对三角形进行正面/背面剔除
      * @param object
+     * @param mode 剔除模式
      */
-    void backFaceCulling(Object &object);
+    void cullingFaces(Object &object, const CullingMode &mode);
 
     /**
      * 对物体顶点组进行透视除法，变换到NDC中
@@ -72,6 +74,8 @@ namespace shader {
     maths::Matrix4x4 getScaleMatrix(double sx, double sy, double sz);
 
     maths::Matrix4x4 getScaleMatrix(const maths::Vector3 &scale);
+
+    maths::Matrix4x4 getRotationMatrix(const maths::Vector3 &rotation);
 
     maths::Matrix4x4 getRotationMatrixX(double degreeX);
 

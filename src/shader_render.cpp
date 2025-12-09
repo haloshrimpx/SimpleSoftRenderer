@@ -17,7 +17,7 @@
 #include "../includes/Object.h"
 
 namespace shader {
-    void renderBuffer(const Buffer &buffer) {
+    void renderBuffer(const ScreenBuffer &buffer) {
         const maths::Vector2 size = buffer.getBufferSize();
         const Color *colorBuffer = buffer.getColorBuffer();
         // 行
@@ -25,69 +25,71 @@ namespace shader {
             for (int j = 0; j < size.y; ++j) {
                 // 列
                 Color pixel = colorBuffer[buffer.getIndex(i, j)];
-                pixel.print();
+
                 putpixel(i, j, RGB(pixel.r, pixel.g, pixel.b));
             }
         }
     }
 
-    void vertexShadingPipeline(const Object &renderObject, const DirectionalLight &light, const Camera &camera,
-                               const Buffer &buffer, const int screenWidth, const int screenHeight) {
-        Object renderCube = renderObject;
-        Camera renderCam = camera;
-        DirectionalLight sun = light;
+    void gouraudShadingPipeline(const std::vector<Object> &objects, const std::vector<std::unique_ptr<Light> > &lights,
+                                const Camera &camera,
+                                const ScreenBuffer &buffer) {
+        std::vector<Object> renderObjects = objects;
+        const Camera &renderCam = camera;
 
-        transformObjToWorldSpace(renderCube);
-
-        shadingVertex(renderCube, sun, renderCam.transform.getPosition(), Color(0.1, 0.1, 0.1, 1));
-
-        transformObjToViewSpace(renderCube, renderCam);
-
-        backFaceCulling(renderCube);
-
-        transformObjToPerspProjSpace(renderCube, renderCam);
-
-        std::clog << ">>>>>>>>>>>PROJECTION SPACE" << std::endl;
-        renderCube.mesh.print();
-
-        clipMesh(renderCube.mesh);
-
-        std::clog << ">>>>>>>>>>>MESH CLIPPING" << std::endl;
-        renderCube.mesh.print();
-
-        applyPerspectiveDivision(renderCube);
-
-        std::clog << ">>>>>>>>>>>PERSPECTIVE DIVISION" << std::endl;
-        renderCube.mesh.print();
-
-        transformObjToViewportSpace(renderCube, screenWidth, screenHeight);
-
-        std::clog << ">>>>>>>>>>>VIEWPORT SPACE" << std::endl;
-        renderCube.mesh.print();
-
-        // 开始光栅化
+        // 清空缓冲区
         cleardevice();
+        buffer.clear();
+
+        for (auto &obj: renderObjects) {
+            transformObjToWorldSpace(obj);
+
+            shadingVertex(obj, lights, renderCam.transform.getPosition(), Color(0.08, 0.08, 0.08, 1));
+
+            transformObjToViewSpace(obj, renderCam);
+
+            cullingFaces(obj, CullingMode::BACK);
+
+            transformObjToPerspProjSpace(obj, renderCam);
+
+            std::clog << ">>>>>>>>>>>PROJECTION SPACE" << std::endl;
+            obj.mesh.print();
+
+            clipMesh(obj.mesh);
+
+            std::clog << ">>>>>>>>>>>MESH CLIPPING" << std::endl;
+            obj.mesh.print();
+
+            applyPerspectiveDivision(obj);
+
+            std::clog << ">>>>>>>>>>>PERSPECTIVE DIVISION" << std::endl;
+            obj.mesh.print();
+
+            transformObjToViewportSpace(obj, renderCam.windowWidth, renderCam.windowHeight);
+
+            std::clog << ">>>>>>>>>>>VIEWPORT SPACE" << std::endl;
+            obj.mesh.print();
+
+            rasterizeObject(obj, buffer);
+
+            std::clog << ">>>>>>>>>>>RASTERIZATION" << std::endl;
+            obj.mesh.print();
+
+            // for (auto &triangle: renderCube.mesh.triangles) {
+            //     geom::Vertex vertices[3];
+            //     triangle.getVertex(vertices, renderCube.mesh);
+            //     renderTriangleWireframe(vertices);
+            // }
+        }
+        // 绘制物体
         BeginBatchDraw();
 
-        // 清除缓冲区
-        buffer.clear();
-        rasterizeObject(renderCube, buffer);
-
-        std::clog << ">>>>>>>>>>>RASTERIZATION" << std::endl;
-        renderCube.mesh.print();
-
         renderBuffer(buffer);
-
-        // for (auto &triangle: renderCube.mesh.triangles) {
-        //     geom::Vertex vertices[3];
-        //     triangle.getVertex(vertices, renderCube.mesh);
-        //     renderTriangleWireframe(vertices);
-        // }
 
         EndBatchDraw();
     }
 
-    void rasterizeObject(const Object &object, const Buffer &buffer) {
+    void rasterizeObject(const Object &object, const ScreenBuffer &buffer) {
         const geom::Mesh &mesh = object.mesh;
         const size_t triangleCount = mesh.triangles.size();
 
@@ -104,22 +106,87 @@ namespace shader {
             for (int j = 0; j < rect.height; ++j) {
                 for (int k = 0; k < rect.width; ++k) {
                     maths::Vector2 pos = {startPoint.x + k, startPoint.y + j};
-                    renderPixelColor(mesh.triangles[i], mesh, pos, buffer);
+                    renderLinearPixelDepth(mesh.triangles[i], mesh, pos, buffer, 0.5, 100);
                 }
             }
         }
     }
 
-    void shadingVertex(Object &object, const DirectionalLight &dirLight, const maths::Vector3 &camPos,
+    void shadingVertex(Object &object, const std::vector<std::unique_ptr<Light> > &lights, const maths::Vector3 &camPos,
                        const Color &ambient) {
-        geom::Mesh &mesh = object.mesh;
-        maths::Vector3 lightDir = {1, 1, 1}; // FOR DEBUG
+        // 遍历光源列表，判断类型
+        // 获取：光源颜色，强度，相对顶点的方向
 
+        // 计算世界空间光照
+        geom::Mesh &mesh = object.mesh;
+
+        // 计算各种光源的照明
+        for (auto &light: lights) {
+            if (light->getType() == LightType::DIRECTIONAL) {
+                // 方向光
+                auto *dirLight = dynamic_cast<DirectionalLight *>(light.get());
+                handleDirectionalLight(object, dirLight, camPos);
+            } else if (light->getType() == LightType::POINT) {
+                // 点光源
+                auto *pointLight = dynamic_cast<PointLight *>(light.get());
+                handlePointLight(object, pointLight, camPos);
+            }
+        }
+
+        // 计算环境光
         for (auto &triangle: mesh.triangles) {
+            for (auto &vertColor: triangle.vertColors) {
+                // 为顶点计算环境光
+                vertColor = vertColor + ambient; // 将环境光信息存储进三角形
+            }
+        }
+    }
+
+    void handlePointLight(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos) {
+        maths::Vector3 lightPos = pointLight->transform.getPosition();
+        maths::Vector3 lightDir;
+        Color lightColor = pointLight->color * pointLight->intensity;
+
+        for (auto &triangle: object.mesh.triangles) {
             std::vector<geom::Vertex> vertices;
             std::vector<maths::Vector3> normals;
-            triangle.getVertNormals(normals, mesh);
-            triangle.getVertex(vertices, mesh);
+            triangle.getVertNormals(normals, object.mesh);
+            triangle.getVertex(vertices, object.mesh);
+
+            for (int i = 0; i < 3; ++i) {
+                // 为顶点计算光照
+                maths::Vector3 &normal = normals[i];
+                geom::Vertex &vertex = vertices[i];
+                lightDir = lightPos - vertices[i].pos.toVector3();
+
+                maths::Vector3 viewDir = vertex.pos.toVector3() - camPos;
+
+                Color spec = calcSpecular(object.material.baseColor, pointLight->color, normal, object.material.gloss,
+                                          lightDir, viewDir);
+
+                Color diff = calcDiffuse(object.material.baseColor, pointLight->color, normal,
+                                         lightDir);
+
+                triangle.vertColors[i] = triangle.vertColors[i] + diff + spec; // 将光照信息存储进三角形
+            }
+        }
+    }
+
+    /**
+     * 计算方向光的光照
+     * @param object
+     * @param dirLight
+     * @param camPos
+     */
+    void handleDirectionalLight(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos) {
+        maths::Vector3 lightDir = dirLight->getDirection();
+        Color lightColor = dirLight->color * dirLight->intensity;
+
+        for (auto &triangle: object.mesh.triangles) {
+            std::vector<geom::Vertex> vertices;
+            std::vector<maths::Vector3> normals;
+            triangle.getVertNormals(normals, object.mesh);
+            triangle.getVertex(vertices, object.mesh);
 
             for (int i = 0; i < 3; ++i) {
                 // 为顶点计算光照
@@ -128,16 +195,18 @@ namespace shader {
 
                 maths::Vector3 viewDir = vertex.pos.toVector3() - camPos;
 
-                Color spec = calcSpecular(object.material.baseColor, dirLight.color, normal, object.material.gloss,
+                Color spec = calcSpecular(object.material.baseColor, dirLight->color, normal, object.material.gloss,
                                           lightDir, viewDir);
-                Color diff = calcDiffuse(object.material.baseColor, dirLight.color, normal,
+
+                Color diff = calcDiffuse(object.material.baseColor, dirLight->color, normal,
                                          lightDir);
-                triangle.vertColors[i] = spec + diff + ambient; // 将光照信息存储进三角形
+
+                triangle.vertColors[i] = triangle.vertColors[i] + diff + spec; // 将光照信息存储进三角形
             }
         }
     }
 
-    void shadingFace(Object &object, const DirectionalLight &dirLight) {
+    void shadingFace(Object &object, const std::vector<std::unique_ptr<Light> > &lights) {
         // TODO
     }
 
@@ -290,9 +359,11 @@ namespace shader {
      * @param mesh
      * @param scrPos
      * @param buffer
+     * @param n 近平面
+     * @param f 远平面
      */
-    void renderPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const Buffer &buffer) {
+    void renderLinearPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                                const ScreenBuffer &buffer, const float n, const float f) {
         geom::Vertex vertices[3];
         triangle.getVertex(vertices, mesh);
 
@@ -301,7 +372,19 @@ namespace shader {
             return;
 
         double z = perspCorrectionLerpZ(vertices, weight);
-        Color pixCol(z, z, z);
+        z = z * 2 - 1; // 映射到[-1, 1]
+        // 线性深度
+        double linearDepth = (2 * n * f) / (f + n - z * (f - n)); //(2 * _near * 100) / (100 + 0.5 - z * (100 - 0.5));
+
+        double normalized = (linearDepth - n) / (f - n);
+
+        // 可选：反转颜色（近处为白色，远处为黑色）
+        auto gray = static_cast<float>(1.0 - normalized);
+        // 或者不反转（近处为黑色，远处为白色）
+        // float gray = normalized;
+
+
+        Color pixCol(gray, gray, gray);
 
         // int x = std::round(scrPos.x);
         // int y = std::round(scrPos.y);
@@ -324,7 +407,7 @@ namespace shader {
      * @param buffer
      */
     void renderPixelColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const Buffer &buffer) {
+                          const ScreenBuffer &buffer) {
         geom::Vertex vertices[3];
         triangle.getVertex(vertices, mesh);
 
@@ -355,7 +438,7 @@ namespace shader {
      * @param buffer
      */
     void renderVertexNormal(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                            const Buffer &buffer) {
+                            const ScreenBuffer &buffer) {
         geom::Vertex vertices[3];
         maths::Vector3 normals[3];
         triangle.getVertNormals(normals, mesh);

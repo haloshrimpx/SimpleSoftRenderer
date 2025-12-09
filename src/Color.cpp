@@ -21,7 +21,8 @@ Color calcDiffuse(const Color &baseColor, const Color &lightColor,
                   const maths::Vector3 &normal, const maths::Vector3 &lightDir) {
     double NdotL = maths::Vector3::dot(normal.normalize(), lightDir.normalize());
     // diffuse = lightCol * baseCol * max(0, NdotL)
-    return (lightColor * baseColor) * (std::max(0.0, NdotL));
+
+    return (lightColor * baseColor) * std::max(0.0f, static_cast<float>(NdotL));
 }
 
 /**
@@ -36,7 +37,10 @@ Color calcDiffuse(const Color &baseColor, const Color &lightColor,
  */
 Color calcSpecular(const Color &baseColor, const Color &lightColor, const maths::Vector3 &normal, const double gloss,
                    const maths::Vector3 &lightDir, const maths::Vector3 &viewDir) {
-    maths::Vector3 half = (lightDir + viewDir) * (1 / (lightDir + viewDir).getMagnitude());
+    maths::Vector3 _lightDir = lightDir.normalize();
+    maths::Vector3 _viewDir = viewDir.normalize();
+
+    maths::Vector3 half = ((_lightDir + _viewDir) * (1.0 / (_lightDir + _viewDir).getMagnitude())).normalize();
     maths::Vector3 n = normal.normalize();
 
     // specular = (lightCol * baseCol) * max(0, n dot half)^gloss
@@ -60,8 +64,8 @@ Color::Color(const maths::Vector4 &vec) {
 Color::Color(const float r, const float g, const float b, const float a) {
     this->r = r;
     this->g = g;
-    this->b = g;
-    this->a = b;
+    this->b = b;
+    this->a = a;
 }
 
 Color::Color(const Color &color) {
@@ -89,7 +93,7 @@ Color Color::operator*(const Color &col) const {
     result.g = g * col.g;
     result.b = b * col.b;
     result.a = a * col.a;
-    return {r, g, b, a};
+    return result;
 }
 
 Color Color::operator*(float value) const {
@@ -98,10 +102,10 @@ Color Color::operator*(float value) const {
 
 Color Color::operator*(double value) const {
     return {
-        static_cast<float>(r * value),
-        static_cast<float>(g * value),
-        static_cast<float>(b * value),
-        static_cast<float>(a * value)
+        r * static_cast<float>(value),
+        g * static_cast<float>(value),
+        b * static_cast<float>(value),
+        a * static_cast<float>(value)
     };
 }
 
@@ -115,9 +119,9 @@ Color Color::operator+(const Color &color) const {
  */
 Color Color::toLinearColor() const {
     Color res;
-    res.r = mapSRGBToLinear(r);
-    res.g = mapSRGBToLinear(g);
-    res.b = mapSRGBToLinear(b);
+    res.r = r / 255;
+    res.g = g / 255;
+    res.b = b / 255;
     res.a = a;
     return res;
 }
@@ -162,11 +166,12 @@ Color Color::linearClamp() const {
 }
 
 Color Color::lerp(const Color &a, const Color &b, const double t) {
+    auto _t = static_cast<float>(t);
     return {
-        static_cast<float>(std::lerp(a.r, b.r, t)),
-        static_cast<float>(std::lerp(a.g, b.g, t)),
-        static_cast<float>(std::lerp(a.b, b.b, t)),
-        static_cast<float>(std::lerp(a.a, b.a, t)),
+        std::lerp(a.r, b.r, _t),
+        std::lerp(a.g, b.g, _t),
+        std::lerp(a.b, b.b, _t),
+        std::lerp(a.a, b.a, _t)
     };
 }
 
@@ -188,5 +193,5 @@ float Color::mapSRGBToLinear(const int valSRGB) {
 }
 
 void Color::print() const {
-    std::clog << "Color(" << r << ", " << g << ", " << b << ", " << a << ")" << std::endl;
+    std::cout << "Color(" << r << ", " << g << ", " << b << ", " << a << ")" << std::endl;
 }

@@ -4,8 +4,14 @@
 
 #ifndef SOFTRENDERER_SHADER_RENDER_H
 #define SOFTRENDERER_SHADER_RENDER_H
+#include <memory>
+#include <vector>
+
 #include "Color.h"
 #include "Vertex.h"
+
+class PointLight;
+class DirectionalLight;
 
 namespace geom {
     class Mesh;
@@ -13,53 +19,64 @@ namespace geom {
 }
 
 class Camera;
-class Buffer;
-class DirectionalLight;
+class ScreenBuffer;
+class Light;
 class Object;
 
 namespace shader {
     /**
+     * 剔除选项
+     */
+    enum class CullingMode {
+        NONE,
+        BACK,
+        FRONT,
+    };
+
+    /**
      * 渲染缓冲区
      * @param buffer
      */
-    void renderBuffer(const Buffer &buffer);
+    void renderBuffer(const ScreenBuffer &buffer);
 
     /**
      * 顶点着色插值的渲染管线
-     * @param renderObject 目标物体
+     * @param objects 要被渲染的物体列表
      * @param light 主光源
      * @param camera 摄像机
      * @param buffer 目标缓冲区
-     * @param screenWidth 屏幕高度
-     * @param screenHeight 屏幕宽度
      */
-    void vertexShadingPipeline(const Object &renderObject, const DirectionalLight &light, const Camera &camera,
-                               const Buffer &buffer, int screenWidth, int screenHeight);
+    void gouraudShadingPipeline(const std::vector<Object> &objects, const std::vector<std::unique_ptr<Light> > &lights,
+                                const Camera &camera,
+                                const ScreenBuffer &buffer);
 
     /**
     * 光栅化物体网格
     * @param object
     * @param buffer
     */
-    void rasterizeObject(const Object &object, const Buffer &buffer);
+    void rasterizeObject(const Object &object, const ScreenBuffer &buffer);
 
     /**
      * 为物体的顶点计算光照
      * @param object
-     * @param dirLight
+     * @param lights
      * @param ambient
      * @param camPos
      */
-
-    void shadingVertex(Object &object, const DirectionalLight &dirLight, const maths::Vector3 &camPos,
+    void shadingVertex(Object &object, const std::vector<std::unique_ptr<Light> > &lights, const maths::Vector3 &camPos,
                        const Color &ambient);
+
+    void handlePointLight(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos);
+
+    void handleDirectionalLight(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos);
 
     /**
      * 为物体的面计算光照
      * @param object
      * @param dirLight
      */
-    void shadingFace(Object &object, const DirectionalLight &dirLight);
+    void shadingFace(Object &object, const std::vector<std::unique_ptr<Light> > &lights);
 
     /**
      * 求位置对于三角形重心的权重
@@ -89,7 +106,7 @@ namespace shader {
      */
     double perspCorrectionLerp(const geom::Vertex triangle[3],
                                const maths::Vector4 &weight,
-                               double iA, const double iB, const double iC);
+                               double iA, double iB, double iC);
 
     maths::Vector3 perspCorrectionLerp(const geom::Vertex triangle[3],
                                        const maths::Vector4 &weight,
@@ -113,14 +130,14 @@ namespace shader {
     Color lerpTriangleColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &p, const maths::Vector4 &weight,
                             double z);
 
-    void renderPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const Buffer &buffer);
+    void renderLinearPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                                const ScreenBuffer &buffer, float n, float f);
 
     void renderPixelColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const Buffer &buffer);
+                          const ScreenBuffer &buffer);
 
     void renderVertexNormal(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                            const Buffer &buffer);
+                            const ScreenBuffer &buffer);
 
     void renderTriangleWireframe(geom::Vertex vertices[3]);
 }

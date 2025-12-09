@@ -10,6 +10,11 @@
 class Transform;
 class Color;
 
+enum class LightType {
+    DIRECTIONAL,
+    POINT,
+};
+
 class Light {
 public:
     float intensity;
@@ -18,14 +23,29 @@ public:
 
     Light(float intensity, const Color &color, const Transform &transform);
 
-    ~Light() = default;
+    virtual ~Light() = default;
+
+    [[nodiscard]] virtual LightType getType() const = 0;
 };
 
 class DirectionalLight : public Light {
 public:
     DirectionalLight(const Color &lightColor, float intensity, const Transform &transform);
 
-    maths::Vector4 getDirection() const;
+    [[nodiscard]] LightType getType() const override;
+
+    [[nodiscard]] maths::Vector3 getDirection() const;
+};
+
+class PointLight : public Light {
+public:
+    double range;
+
+    PointLight(double range, const Color &lightColor, float intensity, const Transform &transform);
+
+    [[nodiscard]] LightType getType() const override;
+
+    [[nodiscard]] double getAttenIntensity(const maths::Vector3 &pos) const;
 };
 
 #endif //SOFTRENDERER_LIGHT_H
