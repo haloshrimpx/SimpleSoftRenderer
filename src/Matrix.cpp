@@ -473,10 +473,10 @@ namespace maths {
     }
 
     void Matrix4x4::print() const {
-        std::cout << "Matrix 4X4:" << std::endl;
+        std::cerr << "Matrix 4X4:" << std::endl;
 
         for (auto &i: matr) {
-            std::cout << i[0] << "\t" << i[1] << "\t" << i[2] << "\t" << i[3] << "\t" << std::endl;
+            std::cerr << i[0] << "\t" << i[1] << "\t" << i[2] << "\t" << i[3] << "\t" << std::endl;
         }
     }
 

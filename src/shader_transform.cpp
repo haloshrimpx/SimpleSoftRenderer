@@ -40,8 +40,8 @@ namespace shader {
         }
     }
 
-    void transformObjToViewSpace(Object &object, const Camera &cam) {
-        maths::Matrix4x4 viewMatr = shader::getViewMatrix(cam.transform);
+    void transformObjToViewSpace(Object &object, const Transform &camTransform) {
+        maths::Matrix4x4 viewMatr = getViewMatrix(camTransform);
         size_t size = object.mesh.vertices.size();
 
         for (int i = 0; i < size; ++i) {
@@ -51,7 +51,20 @@ namespace shader {
     }
 
     void transformObjToPerspProjSpace(Object &object, const Camera &camera) {
-        maths::Matrix4x4 perspMatr = shader::getPerspProjMatrix(camera);
+        maths::Matrix4x4 perspMatr = getPerspProjMatrix(camera);
+        //  getOrthoProjMatrix(camera.aspectRatio, 2, camera.zoomNear, camera.zoomFar);
+
+        size_t size = object.mesh.vertices.size();
+
+        for (int i = 0; i < size; ++i) {
+            maths::Vector4 &pos = object.mesh.vertices[i].pos;
+            pos = maths::Matrix4x4::multiply(perspMatr, pos);
+        }
+    }
+
+    void transformObjToOrthoProjSpace(Object &object, const Camera &camera) {
+        maths::Matrix4x4 perspMatr = getOrthoProjMatrix(camera.aspectRatio, 2, camera.zoomNear, camera.zoomFar);
+
         size_t size = object.mesh.vertices.size();
 
         for (int i = 0; i < size; ++i) {
@@ -99,8 +112,7 @@ namespace shader {
 
     void transformObjToViewportSpace(Object &object, int screenWidth, int screenHeight) {
         for (auto &vertex: object.mesh.vertices) {
-            vertex.pos = shader::viewportTransform(vertex.pos, screenWidth, screenHeight,
-                                                   0, 0);
+            vertex.pos = viewportTransformation(vertex.pos, screenWidth, screenHeight);
         }
     }
 
@@ -260,6 +272,71 @@ namespace shader {
         return maths::Matrix4x4(matr);
     }
 
+    /**
+     * 获取透视投影的MVP矩阵
+     * @param cam
+     * @param worldCamTransform
+     * @return
+     */
+    maths::Matrix4x4 getPerspMVPMatrix(const Camera &cam, const Transform &worldCamTransform) {
+        maths::Matrix4x4 modelMatr = getModelMatrix(worldCamTransform);
+        maths::Matrix4x4 viewMatr = getViewMatrix(worldCamTransform);
+        maths::Matrix4x4 perspMatr = getPerspProjMatrix(cam);
+
+        return maths::Matrix4x4::multiply(perspMatr, maths::Matrix4x4::multiply(viewMatr, modelMatr));
+    }
+
+    maths::Matrix4x4 getPerspVPMatrix(const Camera &cam, const Transform &worldTransform) {
+        maths::Matrix4x4 viewMatr = getViewMatrix(worldTransform);
+        maths::Matrix4x4 perspMatr = getPerspProjMatrix(cam);
+
+        return maths::Matrix4x4::multiply(perspMatr, viewMatr);
+    }
+
+    maths::Matrix4x4 getOrthoVPMatrix(const Camera &cam, const Transform &worldTransform) {
+        maths::Matrix4x4 viewMatr = getViewMatrix(worldTransform);
+        maths::Matrix4x4 perspMatr = getPerspProjMatrix(cam);
+
+        return maths::Matrix4x4::multiply(perspMatr, viewMatr);
+    }
+
+    /**
+     * 获取正交投影的MVP矩阵
+     * @param cam
+     * @param worldCamTransform
+     * @return
+     */
+    maths::Matrix4x4 getOrthoMVPMatrix(const Camera &cam, const Transform &worldCamTransform) {
+        maths::Matrix4x4 modelMatr = getModelMatrix(worldCamTransform);
+        maths::Matrix4x4 viewMatr = getViewMatrix(worldCamTransform);
+        maths::Matrix4x4 orthoMatr = getOrthoProjMatrix(cam.aspectRatio, 2, cam.zoomNear, cam.zoomFar);
+
+        return maths::Matrix4x4::multiply(orthoMatr, maths::Matrix4x4::multiply(viewMatr, modelMatr));
+    }
+
+    maths::Matrix4x4 getOrthoProjMatrix(double aspect, double orthoSize, double near, double far) {
+        /*
+         * [ 2/(r-l),     0,         0,        -(r+l)/(r-l) ]
+         * [    0,     2/(t-b),      0,        -(t+b)/(t-b) ]
+         * [    0,         0,     -2/(f-n),    -(f+n)/(f-n) ]
+         * [    0,         0,         0,            1       ]
+         */
+
+        double right = orthoSize * aspect;
+        double left = -orthoSize * aspect;
+        double top = orthoSize;
+        double bottom = -orthoSize;
+
+        double matr[4][4] = {
+            {2 / (right - left), 0, 0, -(right + left) / (right - left)},
+            {0, 2 / (top - bottom), 0, -(top + bottom) / (top - bottom)},
+            {0, 0, -2 / (far - near), -(far + near) / (far - near)},
+            {0, 0, 0, 1}
+        };
+        return maths::Matrix4x4(matr);
+    }
+
+
     maths::Matrix4x4 getViewportTransMatrix(const double w, const double h) {
         /* M_viewport
             [width/2,       0,          0,      x + width/2],
@@ -286,24 +363,15 @@ namespace shader {
         };
     }
 
-    maths::Vector4 viewportTransform(const maths::Vector4 &ndcVec, const int scrW, const int scrH, const int viewportX,
-                                     const int viewportY) {
-        // Matrix4x4 viewportMatr = getViewportTransMatrix(scrW, scrH);
-        // return Matrix4x4::multiply(viewportMatr, ndcVec);
-        // y轴向上
-        // x_screen = (x_ndc + 1) * (width / 2) + x
-        // y_screen = (y_ndc + 1) * (height / 2) + y
-        // z_screen = (z_ndc + 1) * 0.5
-
+    maths::Vector4 viewportTransformation(const maths::Vector4 &ndcVec, const int scrW, const int scrH) {
         double x = (ndcVec.x + 1) / 2 * scrW;
-
         // OpenGL的屏幕坐标系的原点在左下角，Windows控制台的坐标系原点在左上角
         // 变换到Windows控制台的形式R
         double y = (1 - ndcVec.y) / 2 * scrH;
-        double z = (ndcVec.z + 1) * 0.5; // 映射到[0, 1]
+        double z = ndcVec.z * 0.5 + 0.5; // 映射到[0, 1]
 
         return {
-            x, y, z, ndcVec.w
+            x, y, z, 1
         };
     }
 
@@ -381,23 +449,48 @@ namespace shader {
      * @param invVPMatrix VP矩阵的逆矩阵
      * @param scrW
      * @param scrH
+     * @param near
+     * @param far
      * @return
      */
     maths::Vector4 screenPosToWorld(const maths::Vector3 &screenPos, const maths::Matrix4x4 &invVPMatrix,
-                                    const int scrW, const int scrH) {
+                                    const int scrW, const int scrH, const double near, const double far) {
         // 转换为NDC坐标
         double ndcX = 2 * screenPos.x / scrW - 1;
         double ndcY = 1 - 2 * screenPos.y / scrH; // Y反转
         double ndcZ = 2 * screenPos.z - 1;
 
-        // 齐次坐标
-        maths::Vector4 pos = {ndcX, ndcY, ndcZ, 1};
-        pos = maths::Matrix4x4::multiply(invVPMatrix, pos); // 逆变换
+        // 方法：重建正确 w_c 的裁剪坐标
+        // 获取投影矩阵参数
+        double n = near;
+        double f = far;
+        double A = -(f + n) / (f - n);
+        double B = -2 * f * n / (f - n);
+
+        // 从 ndcZ 反算视图空间 z_v
+        double z_v = B / (-ndcZ - A);
+        double w = -z_v;
+
+        // 裁剪空间坐标
+        maths::Vector4 pos = {ndcX * w, ndcY * w, ndcZ * w, w};
+
+        pos = maths::Matrix4x4::multiply(invVPMatrix, pos); // 逆变换 到 世界坐标
 
         // 透视除法
         pos *= 1 / pos.w;
 
         // 返回世界坐标
         return pos;
+    }
+
+    /**
+     * 将NDC[-1, 1]的深度转换为线性深度
+     * @param ndcDepth
+     * @param near
+     * @param far
+     * @return
+     */
+    double ndcToLinear01Depth(double ndcDepth, double near, double far) {
+        return (2.0 * near * far) / (far + near - ndcDepth * (far - near));
     }
 }

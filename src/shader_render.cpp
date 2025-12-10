@@ -14,11 +14,12 @@
 #include "../includes/shader_geometry.h"
 #include "../includes/shader_transform.h"
 #include "../includes/Light.h"
+#include  "../includes/Matrix.h"
 #include "../includes/Object.h"
 
 namespace shader {
     void renderBuffer(const ScreenBuffer &buffer) {
-        const maths::Vector2 size = buffer.getBufferSize();
+        const maths::Vector2 size = {static_cast<double>(buffer.getWidth()), static_cast<double>(buffer.getHeight())};
         const Color *colorBuffer = buffer.getColorBuffer();
         // 行
         for (int i = 0; i < size.x; ++i) {
@@ -31,11 +32,44 @@ namespace shader {
         }
     }
 
-    void gouraudShadingPipeline(const std::vector<Object> &objects, const std::vector<std::unique_ptr<Light> > &lights,
-                                const Camera &camera,
-                                const ScreenBuffer &buffer) {
+    void renderDepthBuffer(const DepthBuffer &buffer) {
+        const maths::Vector2 size = {static_cast<double>(buffer.getWidth()), static_cast<double>(buffer.getHeight())};
+        // 行
+        for (int i = 0; i < size.x; ++i) {
+            for (int j = 0; j < size.y; ++j) {
+                // 列
+                double z = buffer.getDepth(i, j);
+
+                z = z * 2 - 1; // 映射到[-1, 1]
+                // 线性深度
+                double n = 0.5;
+                double f = 100;
+                double linearDepth = (2 * n * f) / (f + n - z * (f - n));
+
+                double normalized = (linearDepth - n) / (f - n);
+
+                // 反转颜色
+                auto gray = std::clamp(1 - static_cast<float>(normalized), 0.0f, 1.0f) * 255;
+                putpixel(i, j, RGB(gray, gray, gray));
+            }
+        }
+    }
+
+    void gouraudShadingPipeline(const std::vector<Object> &objects,
+                                const std::vector<std::unique_ptr<Light> > &lights,
+                                const Camera &camera, const ScreenBuffer &buffer) {
         std::vector<Object> renderObjects = objects;
         const Camera &renderCam = camera;
+
+        // DEBUG 点光源的阴影
+        DepthBuffer depthBuffer(1024, 1024);
+        Camera lightCamera(90, 0.05, 1000, 1024, 1024, {
+                               {0, 4, 4}, {-60, 0, 0}, {1, 1, 1}
+                           });
+        maths::Matrix4x4 lightVPMatr = getPerspVPMatrix(lightCamera, lightCamera.transform);
+        std::cerr << "light vp" << std::endl;
+        lightVPMatr.print();
+        renderShadowBuffer(renderObjects, lightCamera, depthBuffer);
 
         // 清空缓冲区
         cleardevice();
@@ -46,7 +80,7 @@ namespace shader {
 
             shadingVertex(obj, lights, renderCam.transform.getPosition(), Color(0.08, 0.08, 0.08, 1));
 
-            transformObjToViewSpace(obj, renderCam);
+            transformObjToViewSpace(obj, renderCam.transform);
 
             cullingFaces(obj, CullingMode::BACK);
 
@@ -70,26 +104,69 @@ namespace shader {
             std::clog << ">>>>>>>>>>>VIEWPORT SPACE" << std::endl;
             obj.mesh.print();
 
-            rasterizeObject(obj, buffer);
+            maths::Matrix4x4 invVPMatr =
+                    getPerspVPMatrix(renderCam, renderCam.transform).inverse();
+
+            rasterizeObject(obj, buffer, invVPMatr, lightVPMatr, depthBuffer);
 
             std::clog << ">>>>>>>>>>>RASTERIZATION" << std::endl;
             obj.mesh.print();
-
-            // for (auto &triangle: renderCube.mesh.triangles) {
+            //
+            // for (auto &triangle: obj.mesh.triangles) {
             //     geom::Vertex vertices[3];
-            //     triangle.getVertex(vertices, renderCube.mesh);
+            //     triangle.getVertex(vertices, obj.mesh);
             //     renderTriangleWireframe(vertices);
             // }
         }
         // 绘制物体
         BeginBatchDraw();
 
+        // renderDepthBuffer(depthBuffer);
         renderBuffer(buffer);
 
         EndBatchDraw();
     }
 
-    void rasterizeObject(const Object &object, const ScreenBuffer &buffer) {
+    void renderShadowBuffer(const std::vector<Object> &objects, const Camera &lightCamera, DepthBuffer &depthBuffer) {
+        // 对顶点进行变换，并光栅化深度，写入缓冲区
+        std::vector<Object> _objects = objects;
+
+        for (auto &obj: _objects) {
+            transformObjToWorldSpace(obj); // M
+            transformObjToViewSpace(obj, lightCamera.transform); // MV
+            cullingFaces(obj, CullingMode::FRONT);
+            transformObjToPerspProjSpace(obj, lightCamera); // MVP
+            clipMesh(obj.mesh);
+            applyPerspectiveDivision(obj);
+            transformObjToViewportSpace(obj, lightCamera.windowWidth, lightCamera.windowHeight);
+
+            // 光栅化深度
+            const geom::Mesh &mesh = obj.mesh;
+            const size_t triangleCount = mesh.triangles.size();
+
+            // 遍历所有的三角形
+            for (int i = 0; i < triangleCount; ++i) {
+                geom::Vertex vertices[3];
+                mesh.triangles[i].getVertex(vertices, mesh);
+
+                // 计算包围盒
+                geom::Rectangle rect = calcTriangleBound(vertices);
+                maths::Vector2 startPoint = rect.getOriginPoint();
+
+                // 光栅化
+                for (int j = 0; j < rect.height; ++j) {
+                    for (int k = 0; k < rect.width; ++k) {
+                        maths::Vector2 pos = {startPoint.x + k, startPoint.y + j};
+                        writePerspPixelDepth(mesh.triangles[i], mesh, pos, depthBuffer);
+                    }
+                }
+            }
+        }
+    }
+
+    void rasterizeObject(const Object &object, const ScreenBuffer &scrBuffer,
+                         const maths::Matrix4x4 &invVPMatr, const maths::Matrix4x4 &lightVPMatr,
+                         const DepthBuffer &depthBuffer) {
         const geom::Mesh &mesh = object.mesh;
         const size_t triangleCount = mesh.triangles.size();
 
@@ -106,7 +183,9 @@ namespace shader {
             for (int j = 0; j < rect.height; ++j) {
                 for (int k = 0; k < rect.width; ++k) {
                     maths::Vector2 pos = {startPoint.x + k, startPoint.y + j};
-                    renderLinearPixelDepth(mesh.triangles[i], mesh, pos, buffer, 0.5, 100);
+                    // renderPerspPixelDepth(mesh.triangles[i], mesh, pos, buffer, 0.5, 100);
+                    // renderOrthoPixelDepth(mesh.triangles[i], mesh, pos, buffer);
+                    renderPixelColor(mesh.triangles[i], mesh, pos, invVPMatr, lightVPMatr, scrBuffer, depthBuffer);
                 }
             }
         }
@@ -125,11 +204,11 @@ namespace shader {
             if (light->getType() == LightType::DIRECTIONAL) {
                 // 方向光
                 auto *dirLight = dynamic_cast<DirectionalLight *>(light.get());
-                handleDirectionalLight(object, dirLight, camPos);
+                handleDirectionalLightPersp(object, dirLight, camPos);
             } else if (light->getType() == LightType::POINT) {
                 // 点光源
                 auto *pointLight = dynamic_cast<PointLight *>(light.get());
-                handlePointLight(object, pointLight, camPos);
+                handlePointLightPersp(object, pointLight, camPos);
             }
         }
 
@@ -142,7 +221,7 @@ namespace shader {
         }
     }
 
-    void handlePointLight(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos) {
+    void handlePointLightPersp(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos) {
         maths::Vector3 lightPos = pointLight->transform.getPosition();
         maths::Vector3 lightDir;
         Color lightColor = pointLight->color * pointLight->intensity;
@@ -178,7 +257,7 @@ namespace shader {
      * @param dirLight
      * @param camPos
      */
-    void handleDirectionalLight(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos) {
+    void handleDirectionalLightPersp(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos) {
         maths::Vector3 lightDir = dirLight->getDirection();
         Color lightColor = dirLight->color * dirLight->intensity;
 
@@ -210,7 +289,13 @@ namespace shader {
         // TODO
     }
 
-    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], const maths::Vector2 &p) {
+    /**
+     *
+     * @param triangle
+     * @param p
+     * @return
+     */
+    maths::Vector4 calcTriangleWeight(const geom::Vertex triangle[3], const maths::Vector2 &p) {
         const maths::Vector2 &A = triangle[0].pos.toVector2();
         const maths::Vector2 &B = triangle[1].pos.toVector2();
         const maths::Vector2 &C = triangle[2].pos.toVector2();
@@ -221,16 +306,11 @@ namespace shader {
         double beta = calcDoubleTriangleArea(A, p, C) / area;
         double gamma = 1 - alpha - beta;
 
-        // double inv = 1/(alpha + beta + gamma);
-        // alpha *= inv;
-        // beta *= inv;
-        // gamma *= inv;
-
         double flag = (alpha < 0 || beta < 0 || gamma < 0) ? -1 : 0;
         return {alpha, beta, gamma, flag};
     }
 
-    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], const double area, const maths::Vector2 &p) {
+    maths::Vector4 calcTriangleWeight(const geom::Vertex triangle[3], const double area, const maths::Vector2 &p) {
         const maths::Vector2 &A = triangle[0].pos.toVector2();
         const maths::Vector2 &B = triangle[1].pos.toVector2();
         const maths::Vector2 &C = triangle[2].pos.toVector2();
@@ -240,11 +320,6 @@ namespace shader {
         double beta = calcDoubleTriangleArea(A, p, C) / area;
         double gamma = 1 - alpha - beta;
 
-        // double inv = 1/(alpha + beta + gamma);
-        // alpha *= inv;
-        // beta *= inv;
-        // gamma *= inv;
-        //
         double flag = (alpha < 0 || beta < 0 || gamma < 0) ? -1 : 0;
         return {alpha, beta, gamma, flag};
     }
@@ -299,7 +374,6 @@ namespace shader {
         double alpha = weight.x;
         double beta = weight.y;
         double gamma = weight.z;
-
         double zA = triangle[0].pos.z;
         double zB = triangle[1].pos.z;
         double zC = triangle[2].pos.z;
@@ -319,8 +393,13 @@ namespace shader {
         double zA = triangle[0].pos.z;
         double zB = triangle[1].pos.z;
         double zC = triangle[2].pos.z;
-        const maths::Vector3 depths = {zA, zB, zC};
-        double depth = maths::Vector3::dot(depths, weight.toVector3());
+
+        double invZA = 1.0 / zA;
+        double invZB = 1.0 / zB;
+        double invZC = 1.0 / zC;
+
+        double invDepth = maths::Vector3::dot({invZA, invZB, invZC}, weight.toVector3());
+        double depth = 1.0 / invDepth;
 
         return depth;
     }
@@ -340,7 +419,6 @@ namespace shader {
         triangle.getVertex(vertices, mesh);
 
         // 插值深度
-        // const double z = alpha * triangle[0].pos.z + beta * triangle[1].pos.z + gamma * triangle[2].pos.z;
 
         // 插值颜色
         const Color &colA = triangle.vertColors[0] * (1 / vertices[0].pos.z) * alpha;
@@ -353,7 +431,7 @@ namespace shader {
     }
 
     /**
-     * 根据顶点插值渲染单个像素的深度
+     * 根据顶点插值渲染单个像素的线性深度
      * 如果像素位置在三角形外，就不渲染
      * @param triangle
      * @param mesh
@@ -362,12 +440,12 @@ namespace shader {
      * @param n 近平面
      * @param f 远平面
      */
-    void renderLinearPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                                const ScreenBuffer &buffer, const float n, const float f) {
+    void renderPerspPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                               const ScreenBuffer &buffer, const float n, const float f) {
         geom::Vertex vertices[3];
         triangle.getVertex(vertices, mesh);
 
-        maths::Vector4 weight = getTriangleWeight(vertices, scrPos);
+        maths::Vector4 weight = calcTriangleWeight(vertices, scrPos);
         if (weight.w < 0)
             return;
 
@@ -378,16 +456,10 @@ namespace shader {
 
         double normalized = (linearDepth - n) / (f - n);
 
-        // 可选：反转颜色（近处为白色，远处为黑色）
-        auto gray = static_cast<float>(1.0 - normalized);
-        // 或者不反转（近处为黑色，远处为白色）
-        // float gray = normalized;
-
+        // 反转颜色
+        auto gray = 1 - static_cast<float>(normalized);
 
         Color pixCol(gray, gray, gray);
-
-        // int x = std::round(scrPos.x);
-        // int y = std::round(scrPos.y);
 
         // 四舍五入
         int x = (int) std::round(scrPos.x + 0.5);
@@ -398,36 +470,100 @@ namespace shader {
         // putpixel(x, y, RGB(z, z, z));
     }
 
+    void writePerspPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos, DepthBuffer &buffer) {
+        geom::Vertex vertices[3];
+        triangle.getVertex(vertices, mesh);
+
+        maths::Vector4 weight = calcTriangleWeight(vertices, scrPos);
+        if (weight.w < 0)
+            return;
+
+        double z = perspCorrectionLerpZ(vertices, weight);
+        buffer.writeDepthBuffer(scrPos.x, scrPos.y, z);
+    }
+
+    /**
+     * 渲染正交投影的深度
+     * @param triangle
+     * @param mesh
+     * @param scrPos
+     * @param buffer
+     */
+    void renderOrthoPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                               const ScreenBuffer &buffer) {
+        geom::Vertex vertices[3];
+        triangle.getVertex(vertices, mesh);
+
+        maths::Vector4 weight = calcTriangleWeight(vertices, scrPos);
+        if (weight.w < 0)
+            return;
+
+        auto z = 1 - static_cast<float>(perspCorrectionLerpZ(vertices, weight));
+        Color pixCol(z, z, z);
+
+        // 四舍五入
+        int x = (int) std::round(scrPos.x + 0.5);
+        int y = (int) std::round(scrPos.y + 0.5);
+
+
+        buffer.writeColorBuffer(x, y, pixCol.toSRGBColor().sRGBClamp(), z);
+    }
+
     /**
      * 逐像素插值顶点颜色
      * 如果像素位置在三角形外，就不渲染
      * @param triangle
      * @param mesh
      * @param scrPos
-     * @param buffer
+     * @param invVPMatr
+     * @param lightVPMatr
+     * @param scrBuffer
+     * @param depthBuffer
      */
     void renderPixelColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const ScreenBuffer &buffer) {
+                          const maths::Matrix4x4 &invVPMatr, const maths::Matrix4x4 &lightVPMatr,
+                          const ScreenBuffer &scrBuffer, const DepthBuffer &depthBuffer) {
         geom::Vertex vertices[3];
         triangle.getVertex(vertices, mesh);
 
-        maths::Vector4 weight = getTriangleWeight(vertices, scrPos);
+        maths::Vector4 weight = calcTriangleWeight(vertices, scrPos);
         // 判断点是否在面内
         if (weight.w < 0)
             return;
 
         double z = perspCorrectionLerpZ(vertices, weight);
-        Color pixCol = lerpTriangleColor(triangle, mesh, scrPos, weight, z).toSRGBColor().sRGBClamp(); // HERE
 
-        // pixCol.print();
+        // 将屏幕空间坐标变换到世界空间
+        maths::Vector4 worldPos = screenPosToWorld(scrPos.toVector3(z), invVPMatr, scrBuffer.getWidth(), scrBuffer.getHeight(), 0.5, 100);
+
+        // 变换到光源裁剪空间
+        maths::Vector4 lightSpacePos = maths::Matrix4x4::multiply(lightVPMatr, worldPos);
+        lightSpacePos = perspectiveDivision(lightSpacePos); // NDC [-1, 1]
+
+        double shadowFactor = 1;
+
+        if (lightSpacePos.x >= -1 && lightSpacePos.x <= 1 &&
+            lightSpacePos.y >= -1 && lightSpacePos.y <= 1 &&
+            lightSpacePos.z >= -1 && lightSpacePos.z <= 1 &&
+            lightSpacePos.w > 0) {
+            // 转换到纹理坐标 [0,1]
+
+            lightSpacePos = viewportTransformation(lightSpacePos, depthBuffer.getWidth(), depthBuffer.getHeight());
+
+            double lightDepth = depthBuffer.getDepth(lightSpacePos.x, lightSpacePos.y);
+
+            if (lightDepth + 0.0005 < lightSpacePos.z)
+                shadowFactor = 0.5;
+        }
+
+        Color pixCol = lerpTriangleColor(triangle, mesh, scrPos, weight, z).toSRGBColor().sRGBClamp();
 
         int x = (int) std::round(scrPos.x + 0.5);
         int y = (int) std::round(scrPos.y + 0.5);
 
-        buffer.writeColorBuffer(x, y, pixCol, z);
-        // int x = std::round(p.x);
-        // int y = std::round(p.y);
-        // putpixel(x, y, RGB(pixColor.r, pixColor.g, pixColor.b));
+        pixCol = pixCol * shadowFactor;
+
+        scrBuffer.writeColorBuffer(x, y, pixCol, z);
     }
 
     /**
@@ -444,7 +580,7 @@ namespace shader {
         triangle.getVertNormals(normals, mesh);
         triangle.getVertex(vertices, mesh);
 
-        maths::Vector4 weight = getTriangleWeight(vertices, scrPos);
+        maths::Vector4 weight = calcTriangleWeight(vertices, scrPos);
         if (weight.w < 0)
             return;
 

@@ -36,7 +36,7 @@ public:
 
     [[nodiscard]] const Color *getColorBuffer() const;
 
-    [[nodiscard]] bool writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const;
+    bool writeColorBuffer(int x, int y, const Color &sRGBCol, double z) const;
 
     void clear() const override;
 

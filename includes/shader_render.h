@@ -10,6 +10,11 @@
 #include "Color.h"
 #include "Vertex.h"
 
+namespace maths {
+    class Matrix4x4;
+}
+
+class DepthBuffer;
 class PointLight;
 class DirectionalLight;
 
@@ -53,9 +58,15 @@ namespace shader {
     /**
     * 光栅化物体网格
     * @param object
-    * @param buffer
+    * @param scrBuffer
+    * @param invVPMatr
+    * @param depthBuffer
     */
-    void rasterizeObject(const Object &object, const ScreenBuffer &buffer);
+    void rasterizeObject(const Object &object, const ScreenBuffer &scrBuffer,
+                         const maths::Matrix4x4 &invVPMatr, const maths::Matrix4x4 &lightVPMatr,
+                         const DepthBuffer &depthBuffer);
+
+    void renderShadowBuffer(const std::vector<Object> &objects, const Camera &lightCamera, DepthBuffer &depthBuffer);
 
     /**
      * 为物体的顶点计算光照
@@ -67,9 +78,9 @@ namespace shader {
     void shadingVertex(Object &object, const std::vector<std::unique_ptr<Light> > &lights, const maths::Vector3 &camPos,
                        const Color &ambient);
 
-    void handlePointLight(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos);
+    void handlePointLightPersp(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos);
 
-    void handleDirectionalLight(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos);
+    void handleDirectionalLightPersp(Object &object, const DirectionalLight *dirLight, const maths::Vector3 &camPos);
 
     /**
      * 为物体的面计算光照
@@ -84,7 +95,7 @@ namespace shader {
      * @param p
      * @return x: alpha | y: beta | z: gamma | w:flag
      */
-    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], const maths::Vector2 &p);
+    maths::Vector4 calcTriangleWeight(const geom::Vertex triangle[3], const maths::Vector2 &p);
 
     /**
     * 求位置对于三角形重心的权重，预计算三角形面积
@@ -93,7 +104,7 @@ namespace shader {
     * @param p
     * @return x: alpha | y: beta | z: gamma | w:flag
     */
-    maths::Vector4 getTriangleWeight(const geom::Vertex triangle[3], double area, const maths::Vector2 &p);
+    maths::Vector4 calcTriangleWeight(const geom::Vertex triangle[3], double area, const maths::Vector2 &p);
 
     /**
      *
@@ -130,14 +141,17 @@ namespace shader {
     Color lerpTriangleColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &p, const maths::Vector4 &weight,
                             double z);
 
-    void renderLinearPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                                const ScreenBuffer &buffer, float n, float f);
+    void renderPerspPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                               const ScreenBuffer &buffer, float n, float f);
+
+    void writePerspPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos, DepthBuffer &buffer);
+
+    void renderOrthoPixelDepth(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
+                               const ScreenBuffer &buffer);
 
     void renderPixelColor(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                          const ScreenBuffer &buffer);
-
-    void renderVertexNormal(const geom::Triangle &triangle, const geom::Mesh &mesh, const maths::Vector2 &scrPos,
-                            const ScreenBuffer &buffer);
+                          const maths::Matrix4x4 &invVPMatr, const maths::Matrix4x4 &lightVPMatr,
+                          const ScreenBuffer &scrBuffer, const DepthBuffer &depthBuffer);
 
     void renderTriangleWireframe(geom::Vertex vertices[3]);
 }

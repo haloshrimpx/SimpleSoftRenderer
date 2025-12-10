@@ -35,9 +35,9 @@ namespace shader {
     /**
      * 将物体顶点组从世界空间变换到观察空间
      * @param object
-     * @param cam
+     * @param camTransform
      */
-    void transformObjToViewSpace(Object &object, const Camera &cam);
+    void transformObjToViewSpace(Object &object, const Transform &camTransform);
 
     /**
      * 将物体顶点组从观察变换到透视裁剪空间
@@ -45,6 +45,13 @@ namespace shader {
      * @param camera
      */
     void transformObjToPerspProjSpace(Object &object, const Camera &camera);
+
+    /**
+     * 将物体顶点组变换到正交裁剪空间
+     * @param object
+     * @param camera
+     */
+    void transformObjToOrthoProjSpace(Object &object, const Camera &camera);
 
     /**
      * 在观察空间中对三角形进行正面/背面剔除
@@ -66,6 +73,7 @@ namespace shader {
      * @param screenHeight
      */
     void transformObjToViewportSpace(Object &object, int screenWidth, int screenHeight);
+
 
     maths::Matrix4x4 getTranslationMatrix(double tx, double ty, double tz);
 
@@ -106,6 +114,22 @@ namespace shader {
      */
     maths::Matrix4x4 getPerspProjMatrix(const Camera &cam);
 
+    maths::Matrix4x4 getPerspMVPMatrix(const Camera &cam, const Transform &worldCamTransform);
+
+    maths::Matrix4x4 getPerspVPMatrix(const Camera &cam, const Transform &worldTransform);
+
+    maths::Matrix4x4 getOrthoMVPMatrix(const Camera &cam, const Transform &worldCamTransform);
+
+    /**
+     * 获取正交投影矩阵
+     * @param aspect 宽高比
+     * @param orthoSize 视景体高度的一半, 相当于缩放因子, 越大看到的东西越多
+     * @param near 近平面
+     * @param far 远平面
+     * @return
+     */
+    maths::Matrix4x4 getOrthoProjMatrix(double aspect, double orthoSize, double near, double far);
+
     /**
      * 透视除法
      * @param projSpaceVec 裁剪空间内的点
@@ -118,12 +142,9 @@ namespace shader {
      * @param ndcVec NDC空间中的顶点坐标
      * @param scrW 窗口宽度
      * @param scrH 窗口高度
-     * @param viewportX 视口x坐标
-     * @param viewportY 视口y坐标
      * @return
      */
-    maths::Vector4 viewportTransform(const maths::Vector4 &ndcVec, int scrW, int scrH,
-                                     int viewportX, int viewportY);
+    maths::Vector4 viewportTransformation(const maths::Vector4 &ndcVec, int scrW, int scrH);
 
     maths::Vector4 translation(const maths::Vector4 &vec, double x, double y, double z);
 
@@ -140,7 +161,11 @@ namespace shader {
     maths::Vector4 rotateLocal(const maths::Vector4 &vec, const maths::Vector3 &deltaDegree);
 
     maths::Vector4 rotateLocal(const maths::Vector4 &vec, double degX, double degY, double degZ);
-}
 
+    maths::Vector4 screenPosToWorld(const maths::Vector3 &screenPos, const maths::Matrix4x4 &invVPMatrix,
+                                    const int scrW, const int scrH, const double near, const double far);
+
+    double ndcToLinear01Depth(double ndcDepth, double near, double far);
+}
 
 #endif //SOFTRENDERER_SHADER_TRANSFORM_H

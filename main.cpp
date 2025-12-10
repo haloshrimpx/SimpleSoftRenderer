@@ -1,3 +1,4 @@
+#include <complex>
 #include <easyx.h>
 #include <iostream>
 #include <vector>
@@ -7,28 +8,107 @@
 #include "includes/obj_reader.h"
 #include "includes/Camera.h"
 #include "includes/Light.h"
+#include "includes/Matrix.h"
 #include "includes/Object.h"
+#include "includes/shader_geometry.h"
 #include "includes/shader_render.h"
+#include "includes/shader_transform.h"
 #include "includes/Transform.h"
 
-std::vector<std::array<geom::Vertex, 3> > generateVertForTest(
-    const std::vector<std::array<maths::Vector3, 3> > &verts) {
-    std::vector<std::array<geom::Vertex, 3> > output;
-    // 遍历顶点组，获取array
-    for (const auto &vert: verts) {
-        std::array<geom::Vertex, 3> vertArr;
-        for (int i = 0; i < 3; ++i) {
-            geom::Vertex newVert;
-            newVert.pos = vert[i].toVector4(1);
+int awfwa(int argc, char *argv[]) {
+    maths::Vector4 worldPos{2, 0, -3, 1}; // 世界空间
 
-            vertArr[i] = newVert;
-        }
+    Transform cameraWorldTransform(
+        {0, 0, 3},
+        {0, 0, 0}, // 左手坐标系中，绕y+轴顺时针旋转为正方向
+        {1, 1, 1}
+    );
 
-        output.push_back(vertArr);
+    Camera camera(60, 0.5, 100, 800, 600, cameraWorldTransform);
+
+    Object obj("s", "triangle.obj", {{0, 0, 0}, {0, 0, 0}, {1, 1, 1}}, Material());
+
+    shader::transformObjToWorldSpace(obj);
+
+    obj.mesh.triangles[0].vertColors[0] = COLOR_BLUE;
+    obj.mesh.triangles[0].vertColors[1] = COLOR_RED;
+    obj.mesh.triangles[0].vertColors[2] = COLOR_GREEN;
+
+    maths::Matrix4x4 vp = shader::getPerspVPMatrix(camera, camera.transform);
+
+    for (auto &vertex: obj.mesh.vertices) {
+        vertex.pos = maths::Matrix4x4::multiply(vp, vertex.pos);
     }
 
-    return output;
+    shader::clipMesh(obj.mesh);
+
+    std::clog << ">>>>>>>>>>>MESH CLIPPING" << std::endl;
+    obj.mesh.print();
+
+    shader::applyPerspectiveDivision(obj);
+
+    std::clog << ">>>>>>>>>>>PERSPECTIVE DIVISION" << std::endl;
+    obj.mesh.print();
+
+    shader::transformObjToViewportSpace(obj, camera.windowWidth, camera.windowHeight);
+
+    std::clog << ">>>>>>>>>>>VIEWPORT SPACE" << std::endl;
+    obj.mesh.print();
+
+
+    ScreenBuffer buffer(800, 600);
+    buffer.clear();
+    initgraph(800, 600);
+
+    shader::rasterizeObject(obj, buffer, maths::Matrix4x4(), maths::Matrix4x4(), DepthBuffer(800, 600));
+    shader::renderBuffer(buffer);
+
+    system("pause");
+
+    // // DEBUG 点光源的阴影
+    // DepthBuffer depthBuffer(1024, 1024);
+    // Camera lightCamera(60, 0.05, 100, 1024, 1024, {
+    //                        {0, 4, 4}, {-60, 0, 0}, {1, 1, 1}
+    //                    }
+    // );
+    // maths::Matrix4x4 vp = shader::getPerspVPMatrix(camera, camera.transform);
+
+    // worldPos = maths::Matrix4x4::multiply(vp, worldPos);
+    // std::clog << " vp transformation, clip space" << std::endl;
+    // worldPos.print();
+    //
+    // worldPos = shader::perspectiveDivision(worldPos);
+    // std::clog << "pos transformation" << std::endl;
+    // worldPos.print();
+    //
+    // worldPos = shader::viewportTransformation(worldPos, 800, 600);
+    // std::clog << "viewport " << std::endl;
+    // worldPos.print(); // 屏幕空间
+    //
+    // maths::Matrix4x4 invVPMatr = vp.inverse();
+    //
+    // // 变换回世界空间
+    // worldPos = shader::screenPosToWorld(worldPos.toVector3(), invVPMatr, 800, 600, camera.zoomNear, camera.zoomFar);
+    // std::clog << "screenPosToWorld " << std::endl;
+    // worldPos.print();
+    //
+    // // 看看变换到点光源的屏幕空间是不是一样的值
+    // maths::Vector4 worldPos_Light{2, 0, -1, 1};
+    // maths::Matrix4x4 lightVPMatr = shader::getPerspVPMatrix(lightCamera, lightCamera.transform);
+    //
+    // worldPos_Light = maths::Matrix4x4::multiply(lightVPMatr, worldPos_Light);
+    //
+    // worldPos_Light = shader::perspectiveDivision(worldPos_Light);
+    //
+    // worldPos_Light = shader::viewportTransformation(worldPos_Light, 1024, 1024);
+    //
+    // std::clog << "screenPosToWorld_Light :" << std::endl;
+    // worldPos_Light.print();
+    //
+
+    // 相机->世界空间->光源屏幕空间
 }
+
 
 int main() {
     constexpr int SCREEN_WIDTH = 800;
@@ -75,7 +155,9 @@ int main() {
     );
     DirectionalLight sun(
         COLOR_WHITE * 0.1, 0.1, {
-            {0, 0, 0}, {0, 0, -90}, {1, 1, 1}
+            {0, 3, 0},
+            {0, 0, -90},
+            {1, 1, 1}
         }
     );
     PointLight point_light1(
@@ -87,7 +169,7 @@ int main() {
     );
     PointLight point_light2(
         1, Color(11, 167, 255).toLinearColor(), 1, {
-            {1, 0, 1},
+            {0, 4, 4},
             {0, 0, 0},
             {1, 1, 1}
         }
@@ -111,7 +193,7 @@ int main() {
     initgraph(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     while (true) {
-        Camera renderCam(60, 0.01, 100, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
+        Camera renderCam(60, 0.05, 1000, SCREEN_WIDTH, SCREEN_HEIGHT, cameraWorldTransform);
 
         shader::gouraudShadingPipeline({susanna, sphere, plane}, lights, renderCam, renderBuffer);
 
