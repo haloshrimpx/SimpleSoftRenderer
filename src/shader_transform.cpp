@@ -40,8 +40,7 @@ namespace shader {
         }
     }
 
-    void transformObjToViewSpace(Object &object, const Transform &camTransform) {
-        maths::Matrix4x4 viewMatr = getViewMatrix(camTransform);
+    void transformObjToViewSpace(Object &object, const maths::Matrix4x4 &viewMatr) {
         size_t size = object.mesh.vertices.size();
 
         for (int i = 0; i < size; ++i) {
@@ -50,10 +49,7 @@ namespace shader {
         }
     }
 
-    void transformObjToPerspProjSpace(Object &object, const Camera &camera) {
-        maths::Matrix4x4 perspMatr = getPerspProjMatrix(camera);
-        //  getOrthoProjMatrix(camera.aspectRatio, 2, camera.zoomNear, camera.zoomFar);
-
+    void transformObjToPerspProjSpace(Object &object, const maths::Matrix4x4 &perspMatr) {
         size_t size = object.mesh.vertices.size();
 
         for (int i = 0; i < size; ++i) {
@@ -62,19 +58,18 @@ namespace shader {
         }
     }
 
-    void transformObjToOrthoProjSpace(Object &object, const Camera &camera) {
-        maths::Matrix4x4 perspMatr = getOrthoProjMatrix(camera.aspectRatio, 2, camera.zoomNear, camera.zoomFar);
-
+    void transformObjToOrthoProjSpace(Object &object, const maths::Matrix4x4 &orthoMatr) {
         size_t size = object.mesh.vertices.size();
 
         for (int i = 0; i < size; ++i) {
             maths::Vector4 &pos = object.mesh.vertices[i].pos;
-            pos = maths::Matrix4x4::multiply(perspMatr, pos);
+            pos = maths::Matrix4x4::multiply(orthoMatr, pos);
         }
     }
 
     void cullingFaces(Object &object, const CullingMode &mode) {
-        for (int i = object.mesh.triangles.size() - 1; i >= 0; --i) {
+        size_t size = object.mesh.triangles.size();
+        for (int i = size - 1; i >= 0; --i) {
             geom::Triangle &triangle = object.mesh.triangles[i];
             std::vector<geom::Vertex> vertices;
             triangle.getVertex(vertices, object.mesh);
@@ -106,7 +101,7 @@ namespace shader {
     void applyPerspectiveDivision(Object &object) {
         for (auto &vertice: object.mesh.vertices) {
             maths::Vector4 &pos = vertice.pos;
-            pos = shader::perspectiveDivision(pos);
+            pos = perspectiveDivision(pos);
         }
     }
 

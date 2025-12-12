@@ -46,12 +46,12 @@ LightType PointLight::getType() const {
 
 /**
  * 获取点光源衰减的光强度
- * @param pos 光源位置
+ * @param vertPos 光源位置
  */
-double PointLight::getAttenIntensity(const maths::Vector3 &pos) const {
+double PointLight::getAttenIntensity(const maths::Vector3 &vertPos) const {
     // x = distance / range
-    const double dist = maths::Vector3::distance(pos, transform.getPosition());
+    const double dist = maths::Vector3::distance(vertPos, transform.getPosition());
     const double x = dist / range;
     // 光源衰减公式 1/(x^2)
-    return 1 / (x * x);
+    return intensity * (1 / (x * x));
 }

@@ -107,6 +107,7 @@ int awfwa(int argc, char *argv[]) {
     //
 
     // 相机->世界空间->光源屏幕空间
+    return 0;
 }
 
 
@@ -154,33 +155,27 @@ int main() {
                  }, Material(COLOR_WHITE * 0.4, COLOR_BLACK, 10)
     );
     DirectionalLight sun(
-        COLOR_WHITE * 0.1, 0.1, {
+        COLOR_WHITE, 0.4, {
             {0, 3, 0},
-            {0, 0, -90},
+            {-45, 0, -45},
             {1, 1, 1}
         }
     );
-    PointLight point_light1(
-        1, Color(255, 203, 61).toLinearColor(), 1, {
-            {-1, 0, 1},
+    PointLight point_light1( // yellow
+        3, Color(255, 203, 61).toLinearColor(), 0.2, {
+            {-1.5, 0, 1},
             {0, 0, 0},
             {1, 1, 1}
         }
     );
-    PointLight point_light2(
-        1, Color(11, 167, 255).toLinearColor(), 1, {
-            {0, 4, 4},
+    PointLight point_light2( // blue
+        3, Color(11, 167, 255).toLinearColor(), 0.1, {
+            {1.5, 0, 1},
             {0, 0, 0},
             {1, 1, 1}
         }
     );
-    PointLight point_light3(
-        3, COLOR_RED, 1, {
-            {2, 2, -1},
-            {0, 0, 0},
-            {1, 1, 1}
-        }
-    );
+
 
     std::vector<std::unique_ptr<Light> > lights;
     lights.push_back(std::make_unique<DirectionalLight>(sun));

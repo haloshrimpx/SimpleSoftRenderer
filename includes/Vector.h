@@ -36,6 +36,8 @@ namespace maths {
 
         double operator[](int index) const;
 
+        Vector2 operator*(const Vector2 & vector2) const;
+
         static double dot(const Vector2 &a, const Vector2 &b);
 
         static double cross(const Vector2 &a, const Vector2 &b);

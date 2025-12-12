@@ -79,6 +79,18 @@ namespace maths {
         return value;
     }
 
+    /**
+     * 分量相乘
+     * @param vector2
+     * @return
+     */
+    Vector2 Vector2::operator*(const Vector2 &vector2) const {
+        Vector2 res;
+        res.x = x * vector2.x;
+        res.y = y * vector2.y;
+        return res;
+    }
+
     Vector2 operator*(const double n, const Vector2 &v) {
         Vector2 res;
         res.x = v.x * n;

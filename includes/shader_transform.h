@@ -35,23 +35,23 @@ namespace shader {
     /**
      * 将物体顶点组从世界空间变换到观察空间
      * @param object
-     * @param camTransform
+     * @param viewMatr
      */
-    void transformObjToViewSpace(Object &object, const Transform &camTransform);
+    void transformObjToViewSpace(Object &object, const maths::Matrix4x4 &viewMatr);
 
     /**
      * 将物体顶点组从观察变换到透视裁剪空间
      * @param object
-     * @param camera
+     * @param perspMatr 透视投影矩阵
      */
-    void transformObjToPerspProjSpace(Object &object, const Camera &camera);
+    void transformObjToPerspProjSpace(Object &object, const maths::Matrix4x4 &perspMatr);
 
     /**
      * 将物体顶点组变换到正交裁剪空间
      * @param object
-     * @param camera
-     */
-    void transformObjToOrthoProjSpace(Object &object, const Camera &camera);
+     * @param orthoMatr 正交投影矩阵
+     * */
+    void transformObjToOrthoProjSpace(Object &object, const maths::Matrix4x4 &orthoMatr);
 
     /**
      * 在观察空间中对三角形进行正面/背面剔除

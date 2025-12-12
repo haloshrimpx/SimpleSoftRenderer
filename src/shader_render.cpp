@@ -63,28 +63,35 @@ namespace shader {
 
         // DEBUG 点光源的阴影
         DepthBuffer depthBuffer(1024, 1024);
-        Camera lightCamera(90, 0.05, 1000, 1024, 1024, {
+        Camera lightCamera(90, 0.05, 1000, depthBuffer.getWidth(), depthBuffer.getHeight(), {
                                {0, 4, 4}, {-60, 0, 0}, {1, 1, 1}
-                           });
-        maths::Matrix4x4 lightVPMatr = getPerspVPMatrix(lightCamera, lightCamera.transform);
-        std::cerr << "light vp" << std::endl;
-        lightVPMatr.print();
+                           }
+        );
+
+        // 渲染阴影缓冲
         renderShadowBuffer(renderObjects, lightCamera, depthBuffer);
 
-        // 清空缓冲区
+        // 清空缓冲区，开始渲染屏幕
         cleardevice();
         buffer.clear();
+
+        // 光源的VP矩阵
+        maths::Matrix4x4 lightVPMatr = getPerspVPMatrix(lightCamera, lightCamera.transform);
+
+        maths::Matrix4x4 viewMatr = getViewMatrix(renderCam.transform);
+        maths::Matrix4x4 projMatr = getPerspProjMatrix(renderCam);
+        maths::Matrix4x4 invVPMatr = getPerspVPMatrix(renderCam, renderCam.transform).inverse();
 
         for (auto &obj: renderObjects) {
             transformObjToWorldSpace(obj);
 
             shadingVertex(obj, lights, renderCam.transform.getPosition(), Color(0.08, 0.08, 0.08, 1));
 
-            transformObjToViewSpace(obj, renderCam.transform);
+            transformObjToViewSpace(obj, viewMatr);
 
             cullingFaces(obj, CullingMode::BACK);
 
-            transformObjToPerspProjSpace(obj, renderCam);
+            transformObjToPerspProjSpace(obj, projMatr);
 
             std::clog << ">>>>>>>>>>>PROJECTION SPACE" << std::endl;
             obj.mesh.print();
@@ -103,9 +110,6 @@ namespace shader {
 
             std::clog << ">>>>>>>>>>>VIEWPORT SPACE" << std::endl;
             obj.mesh.print();
-
-            maths::Matrix4x4 invVPMatr =
-                    getPerspVPMatrix(renderCam, renderCam.transform).inverse();
 
             rasterizeObject(obj, buffer, invVPMatr, lightVPMatr, depthBuffer);
 
@@ -131,11 +135,14 @@ namespace shader {
         // 对顶点进行变换，并光栅化深度，写入缓冲区
         std::vector<Object> _objects = objects;
 
+        maths::Matrix4x4 viewMatr = getViewMatrix(lightCamera.transform);
+        maths::Matrix4x4 projMatr = getPerspProjMatrix(lightCamera);
+
         for (auto &obj: _objects) {
             transformObjToWorldSpace(obj); // M
-            transformObjToViewSpace(obj, lightCamera.transform); // MV
+            transformObjToViewSpace(obj, viewMatr); // MV
             cullingFaces(obj, CullingMode::FRONT);
-            transformObjToPerspProjSpace(obj, lightCamera); // MVP
+            transformObjToPerspProjSpace(obj, projMatr); // MVP
             clipMesh(obj.mesh);
             applyPerspectiveDivision(obj);
             transformObjToViewportSpace(obj, lightCamera.windowWidth, lightCamera.windowHeight);
@@ -223,8 +230,6 @@ namespace shader {
 
     void handlePointLightPersp(Object &object, const PointLight *pointLight, const maths::Vector3 &camPos) {
         maths::Vector3 lightPos = pointLight->transform.getPosition();
-        maths::Vector3 lightDir;
-        Color lightColor = pointLight->color * pointLight->intensity;
 
         for (auto &triangle: object.mesh.triangles) {
             std::vector<geom::Vertex> vertices;
@@ -236,14 +241,15 @@ namespace shader {
                 // 为顶点计算光照
                 maths::Vector3 &normal = normals[i];
                 geom::Vertex &vertex = vertices[i];
-                lightDir = lightPos - vertices[i].pos.toVector3();
+                maths::Vector3 lightDir = lightPos - vertices[i].pos.toVector3();
+                Color lightColor = pointLight->color * pointLight->getAttenIntensity(vertices[i].pos.toVector3());
 
                 maths::Vector3 viewDir = vertex.pos.toVector3() - camPos;
 
-                Color spec = calcSpecular(object.material.baseColor, pointLight->color, normal, object.material.gloss,
+                Color spec = calcSpecular(object.material.baseColor, lightColor, normal, object.material.gloss,
                                           lightDir, viewDir);
 
-                Color diff = calcDiffuse(object.material.baseColor, pointLight->color, normal,
+                Color diff = calcDiffuse(object.material.baseColor, lightColor, normal,
                                          lightDir);
 
                 triangle.vertColors[i] = triangle.vertColors[i] + diff + spec; // 将光照信息存储进三角形
@@ -274,10 +280,10 @@ namespace shader {
 
                 maths::Vector3 viewDir = vertex.pos.toVector3() - camPos;
 
-                Color spec = calcSpecular(object.material.baseColor, dirLight->color, normal, object.material.gloss,
+                Color spec = calcSpecular(object.material.baseColor, lightColor, normal, object.material.gloss,
                                           lightDir, viewDir);
 
-                Color diff = calcDiffuse(object.material.baseColor, dirLight->color, normal,
+                Color diff = calcDiffuse(object.material.baseColor, lightColor, normal,
                                          lightDir);
 
                 triangle.vertColors[i] = triangle.vertColors[i] + diff + spec; // 将光照信息存储进三角形
@@ -533,6 +539,7 @@ namespace shader {
 
         double z = perspCorrectionLerpZ(vertices, weight);
 
+        // 阴影计算
         // 将屏幕空间坐标变换到世界空间
         maths::Vector4 worldPos = screenPosToWorld(scrPos.toVector3(z), invVPMatr, scrBuffer.getWidth(), scrBuffer.getHeight(), 0.5, 100);
 
@@ -540,28 +547,39 @@ namespace shader {
         maths::Vector4 lightSpacePos = maths::Matrix4x4::multiply(lightVPMatr, worldPos);
         lightSpacePos = perspectiveDivision(lightSpacePos); // NDC [-1, 1]
 
-        double shadowFactor = 1;
+        // 阴影因子
+        double shadowFactor = 0;
 
+        // 判断光源空间坐标有效性
         if (lightSpacePos.x >= -1 && lightSpacePos.x <= 1 &&
             lightSpacePos.y >= -1 && lightSpacePos.y <= 1 &&
             lightSpacePos.z >= -1 && lightSpacePos.z <= 1 &&
             lightSpacePos.w > 0) {
-            // 转换到纹理坐标 [0,1]
-
+            // 转换到阴影贴图坐标 [0,1024]
             lightSpacePos = viewportTransformation(lightSpacePos, depthBuffer.getWidth(), depthBuffer.getHeight());
+            // 纹素大小
+            maths::Vector2 texelSize = maths::Vector2(1.0 / depthBuffer.getWidth(), 1.0 / depthBuffer.getHeight());
 
-            double lightDepth = depthBuffer.getDepth(lightSpacePos.x, lightSpacePos.y);
+            //百分比近似过滤
+            for (int x = -1; x <= 1; x++) {
+                for (int y = -1; y <= 1; y++) {
+                    maths::Vector2 offset = maths::Vector2(x, y) * texelSize;
+                    double depth = depthBuffer.getDepth(lightSpacePos.x + offset.x, lightSpacePos.y + offset.y);
 
-            if (lightDepth + 0.0005 < lightSpacePos.z)
-                shadowFactor = 0.5;
+                    if (depth + 0.0005 < lightSpacePos.z)
+                        shadowFactor += 1.0 / 9.0;
+                }
+            }
         }
 
+
+        // 插值颜色
         Color pixCol = lerpTriangleColor(triangle, mesh, scrPos, weight, z).toSRGBColor().sRGBClamp();
+        pixCol = pixCol * (1 - 0.5 * shadowFactor);
 
         int x = (int) std::round(scrPos.x + 0.5);
         int y = (int) std::round(scrPos.y + 0.5);
 
-        pixCol = pixCol * shadowFactor;
 
         scrBuffer.writeColorBuffer(x, y, pixCol, z);
     }

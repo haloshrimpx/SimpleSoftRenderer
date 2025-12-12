@@ -45,7 +45,7 @@ public:
 
     [[nodiscard]] LightType getType() const override;
 
-    [[nodiscard]] double getAttenIntensity(const maths::Vector3 &pos) const;
+    [[nodiscard]] double getAttenIntensity(const maths::Vector3 &vertPos) const;
 };
 
 #endif //SOFTRENDERER_LIGHT_H
